@@ -1,4 +1,4 @@
-# Checkout IECLB Parobé — v1.4.6
+# Checkout Andre — v1.4.6
 
 Aplicação independente para:
 
