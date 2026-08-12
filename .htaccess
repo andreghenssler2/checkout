@@ -1,0 +1,19 @@
+Options -Indexes
+RewriteEngine On
+
+# HTTPS obrigatório em produção.
+RewriteCond %{HTTPS} !=on
+RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1)(:\d+)?$ [NC]
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+RewriteRule ^ofertas-anteriores/?$ ofertas-anteriores.php [L,QSA,NC]
+RewriteRule ^palpites/historico/?$ palpites-historico.php [L,QSA,NC]
+RewriteRule ^s/([A-Za-z0-9]{4,16})/?$ link.php?codigo=$1 [L,QSA]
+RewriteRule ^oferta/([a-z0-9-]+)/?$ oferta.php?slug=$1 [L,QSA,NC]
+RewriteRule ^palpite/([a-z0-9-]+)/?$ palpite.php?slug=$1 [L,QSA,NC]
+RewriteRule ^pagamento/([A-Za-z0-9_-]+)/?$ pagamento.php?codigo=$1 [L,QSA,NC]
+RewriteRule ^comprovante/([A-Za-z0-9_-]+)/?$ comprovante.php?token=$1 [L,QSA,NC]
+
+<FilesMatch "(^\.|composer\.(json|lock)$|README\.md$)">
+    Require all denied
+</FilesMatch>

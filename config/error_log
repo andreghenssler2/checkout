@@ -1,0 +1,17 @@
+[08-Aug-2026 21:52:03 America/Sao_Paulo] PHP Warning:  include(/home1/ieclbp28/checkout/vendor/composer/../dompdf/php-font-lib/src/FontLib/BinaryStream.php): Failed to open stream: No such file or directory in /home1/ieclbp28/checkout/vendor/composer/ClassLoader.php on line 576
+[08-Aug-2026 21:52:03 America/Sao_Paulo] PHP Warning:  include(/home1/ieclbp28/checkout/vendor/composer/../dompdf/php-font-lib/src/FontLib/BinaryStream.php): Failed to open stream: No such file or directory in /home1/ieclbp28/checkout/vendor/composer/ClassLoader.php on line 576
+[08-Aug-2026 21:52:03 America/Sao_Paulo] PHP Warning:  include(): Failed opening '/home1/ieclbp28/checkout/vendor/composer/../dompdf/php-font-lib/src/FontLib/BinaryStream.php' for inclusion (include_path='.:/opt/cpanel/ea-php83/root/usr/share/pear') in /home1/ieclbp28/checkout/vendor/composer/ClassLoader.php on line 576
+[08-Aug-2026 21:52:03 America/Sao_Paulo] PHP Fatal error:  Uncaught Error: Class "FontLib\BinaryStream" not found in /home1/ieclbp28/checkout/vendor/dompdf/php-font-lib/src/FontLib/TrueType/File.php:24
+Stack trace:
+#0 /home1/ieclbp28/checkout/vendor/composer/ClassLoader.php(576): include()
+#1 /home1/ieclbp28/checkout/vendor/composer/ClassLoader.php(427): Composer\Autoload\{closure}('/home1/ieclbp28...')
+#2 /home1/ieclbp28/checkout/vendor/dompdf/php-font-lib/src/FontLib/Font.php(65): Composer\Autoload\ClassLoader->loadClass('FontLib\\TrueTyp...')
+#3 /home1/ieclbp28/checkout/vendor/dompdf/dompdf/lib/Cpdf.php(1258): FontLib\Font::load('/home1/ieclbp28...')
+#4 /home1/ieclbp28/checkout/vendor/dompdf/dompdf/lib/Cpdf.php(1016): Dompdf\Cpdf->processFont(10, Array)
+#5 /home1/ieclbp28/checkout/vendor/dompdf/dompdf/lib/Cpdf.php(3505): Dompdf\Cpdf->o_font(10, 'add')
+#6 /home1/ieclbp28/checkout/vendor/dompdf/dompdf/src/Adapter/CPDF.php(972): Dompdf\Cpdf->output(false)
+#7 /home1/ieclbp28/checkout/vendor/dompdf/dompdf/src/Dompdf.php(921): Dompdf\Adapter\CPDF->stream('relatorio-palpi...', Array)
+#8 /home1/ieclbp28/checkout/src/PdfReportService.php(175): Dompdf\Dompdf->stream('relatorio-palpi...', Array)
+#9 /home1/ieclbp28/checkout/admin/relatorios/palpites-pdf.php(322): PdfReportService::stream('Relat\xC3\xB3rio de P...', '\n<div class="fi...', 'relatorio-palpi...', 'landscape')
+#10 {main}
+  thrown in /home1/ieclbp28/checkout/vendor/dompdf/php-font-lib/src/FontLib/TrueType/File.php on line 24

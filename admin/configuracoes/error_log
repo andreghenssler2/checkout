@@ -1,0 +1,6 @@
+[08-Aug-2026 20:43:20 America/Sao_Paulo] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'ieclbp28_teste.configuracoes_email' doesn't exist in /home1/ieclbp28/checkout/src/EmailSettings.php:11
+Stack trace:
+#0 /home1/ieclbp28/checkout/src/EmailSettings.php(11): PDO->query('SELECT * FROM c...')
+#1 /home1/ieclbp28/checkout/admin/configuracoes/email.php(8): EmailSettings::get()
+#2 {main}
+  thrown in /home1/ieclbp28/checkout/src/EmailSettings.php on line 11
