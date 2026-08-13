@@ -53,6 +53,25 @@ final class PixAvailabilityService
 
     public static function status(bool $allowRefresh = true): array
     {
+        try {
+            $provider = PaymentGatewaySettings::providerFor('PIX');
+
+            if ($provider === 'PagBank') {
+                $available = PaymentGatewayManager::configuredFor('PIX');
+
+                return [
+                    'ambiente' => PagBankSettings::activeEnvironment(),
+                    'disponivel' => $available,
+                    'verificadoEm' => null,
+                    'chave' => null,
+                    'mensagem' => $available
+                        ? 'PagBank configurado para PIX.'
+                        : 'PagBank não está configurado para PIX.',
+                ];
+            }
+        } catch (Throwable) {
+        }
+
         $environment = AsaasSettings::activeEnvironment();
         $saved = AsaasSettings::pixVerification($environment);
 
@@ -127,6 +146,25 @@ final class PixAvailabilityService
      */
     public static function checkoutAvailable(): bool
     {
+        try {
+            $provider = PaymentGatewaySettings::providerFor('PIX');
+
+            if ($provider === 'PagBank') {
+                return PaymentGatewayManager::configuredFor('PIX');
+            }
+
+            if ($provider !== 'Asaas') {
+                return false;
+            }
+        } catch (Throwable) {
+            return false;
+        }
+
+        return self::asaasAvailable();
+    }
+
+    public static function asaasAvailable(): bool
+    {
         if (!AsaasSettings::enabled()) {
             return false;
         }
@@ -138,11 +176,20 @@ final class PixAvailabilityService
         return self::isAvailable();
     }
 
+    public static function assertAsaasAvailable(): void
+    {
+        if (!self::asaasAvailable()) {
+            throw new RuntimeException(
+                'PIX indisponível para o ambiente Asaas atual.'
+            );
+        }
+    }
+
     public static function assertAvailable(): void
     {
         if (!self::checkoutAvailable()) {
             throw new RuntimeException(
-                'PIX indisponível para o ambiente Asaas atual.'
+                'PIX indisponível no provedor configurado.'
             );
         }
     }

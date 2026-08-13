@@ -39,6 +39,11 @@ final class EmailService
             }
         }
 
+        $trackingToken =
+            EmailSettings::trackingEnabled()
+                ? self::newTrackingToken()
+                : null;
+
         $stmt = $db->prepare(
             "INSERT INTO emails_envios (
                 idPagamento,
@@ -46,6 +51,7 @@ final class EmailService
                 destinatario,
                 assunto,
                 corpoHtml,
+                rastreamento_token,
                 status,
                 tentativas,
                 criadoEm
@@ -55,6 +61,7 @@ final class EmailService
                 :d,
                 :a,
                 :c,
+                :rt,
                 'Pendente',
                 0,
                 NOW()
@@ -68,6 +75,7 @@ final class EmailService
                 ':d' => $to,
                 ':a' => mb_substr($subject, 0, 220),
                 ':c' => $html,
+                ':rt' => $trackingToken,
             ]);
         } catch (PDOException $e) {
             if ($paymentId !== null) {
@@ -185,11 +193,28 @@ final class EmailService
         $sent = false;
         $error = '';
 
+        $html = (string)$email['corpoHtml'];
+
+        if (EmailSettings::trackingEnabled()) {
+            $trackingToken = self::ensureTrackingToken(
+                $idEmail,
+                (string)(
+                    $email['rastreamento_token']
+                    ?? ''
+                )
+            );
+
+            $html = self::injectTrackingPixel(
+                $html,
+                $trackingToken
+            );
+        }
+
         try {
             $sent = mail(
                 $to,
                 $subject,
-                (string)$email['corpoHtml'],
+                $html,
                 implode("\r\n", $headers)
             );
 
@@ -258,6 +283,112 @@ final class EmailService
             'falhas' => $failed,
         ];
     }
+
+private static function ensureTrackingToken(
+    int $idEmail,
+    string $current
+): string {
+    $current = trim($current);
+
+    if (
+        preg_match(
+            '/^[a-f0-9]{64}$/',
+            $current
+        )
+    ) {
+        return $current;
+    }
+
+    $token = self::newTrackingToken();
+
+    Database::connection()->prepare(
+        'UPDATE emails_envios
+         SET rastreamento_token=:t
+         WHERE idEmail=:id
+           AND (
+                rastreamento_token IS NULL
+                OR rastreamento_token=\'\'
+           )'
+    )->execute([
+        ':t' => $token,
+        ':id' => $idEmail,
+    ]);
+
+    $stmt = Database::connection()->prepare(
+        'SELECT rastreamento_token
+         FROM emails_envios
+         WHERE idEmail=:id
+         LIMIT 1'
+    );
+
+    $stmt->execute([
+        ':id' => $idEmail,
+    ]);
+
+    $saved = trim(
+        (string)$stmt->fetchColumn()
+    );
+
+    return preg_match(
+        '/^[a-f0-9]{64}$/',
+        $saved
+    )
+        ? $saved
+        : $token;
+}
+
+private static function newTrackingToken(): string
+{
+    return bin2hex(
+        random_bytes(32)
+    );
+}
+
+private static function injectTrackingPixel(
+    string $html,
+    string $token
+): string {
+    if (
+        !preg_match(
+            '/^[a-f0-9]{64}$/',
+            $token
+        )
+    ) {
+        return $html;
+    }
+
+    $url = APP_URL
+        . '/email/abertura.php?token='
+        . rawurlencode($token);
+
+    $pixel =
+        '<img src="'
+        . htmlspecialchars(
+            $url,
+            ENT_QUOTES | ENT_SUBSTITUTE,
+            'UTF-8'
+        )
+        . '" alt="" width="1" height="1" '
+        . 'style="display:block;width:1px;height:1px;'
+        . 'border:0;opacity:0;overflow:hidden" '
+        . 'aria-hidden="true">';
+
+    if (
+        stripos(
+            $html,
+            '</body>'
+        ) !== false
+    ) {
+        return preg_replace(
+            '/<\/body>/i',
+            $pixel . '</body>',
+            $html,
+            1
+        ) ?: ($html . $pixel);
+    }
+
+    return $html . $pixel;
+}
 
     private static function markError(
         int $idEmail,

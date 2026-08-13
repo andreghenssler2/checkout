@@ -151,10 +151,11 @@ final class PagamentoAdminService
             "SELECT p.*
              FROM pagamentos p
              {$conditions}
-             (
+             p.provedor IN ('Asaas','PagBank')
+             AND (
                 p.status IN ('Pendente','Vencido')
-                OR p.asaasPaymentId IS NULL
-                OR p.asaasPaymentId=''
+                OR p.provedorPaymentId IS NULL
+                OR p.provedorPaymentId=''
              )
              ORDER BY
                 CASE
@@ -168,7 +169,6 @@ final class PagamentoAdminService
         );
 
         $stmt->execute($params);
-
         $candidates = $stmt->fetchAll();
 
         if (!$candidates) {
@@ -179,59 +179,100 @@ final class PagamentoAdminService
             ];
         }
 
-        $asaas = new AsaasService();
-
         $consulted = 0;
         $changed = 0;
         $errors = [];
 
         foreach ($candidates as $local) {
             $id = (int)$local['idPagamento'];
+            $provider = trim(
+                (string)($local['provedor'] ?? 'Asaas')
+            );
 
             try {
                 $beforeStatus = (string)$local['status'];
 
-                $asaasId = trim(
-                    (string)($local['asaasPaymentId'] ?? '')
-                );
+                if ($provider === 'Asaas') {
+                    $asaas = new AsaasService();
 
-                if ($asaasId === '') {
-                    $remote = $asaas->findPaymentByExternalReference(
-                        (string)$local['codigo']
+                    $asaasId = trim(
+                        (string)(
+                            $local['asaasPaymentId']
+                            ?? $local['provedorPaymentId']
+                            ?? ''
+                        )
                     );
 
-                    if (!$remote) {
+                    if ($asaasId === '') {
+                        $remote =
+                            $asaas->findPaymentByExternalReference(
+                                (string)$local['codigo']
+                            );
+
+                        if (!$remote) {
+                            continue;
+                        }
+
+                        PagamentoRepository::linkAsaasByCode(
+                            (string)$local['codigo'],
+                            $remote
+                        );
+
+                        $asaasId = trim(
+                            (string)($remote['id'] ?? '')
+                        );
+                    } else {
+                        $remote =
+                            $asaas->getPayment($asaasId);
+                    }
+
+                    if ($asaasId === '') {
                         continue;
                     }
 
-                    PagamentoRepository::linkAsaasByCode(
-                        (string)$local['codigo'],
+                    $consulted++;
+
+                    PagamentoRepository::updateWebhook(
+                        $asaasId,
+                        (string)($remote['status'] ?? 'PENDING'),
+                        '',
+                        self::remotePaymentDate($remote),
                         $remote
                     );
+                } elseif ($provider === 'PagBank') {
+                    $orderId = trim(
+                        (string)(
+                            $local['provedorPaymentId']
+                            ?? ''
+                        )
+                    );
 
-                    $asaasId = trim(
-                        (string)($remote['id'] ?? '')
+                    if ($orderId === '') {
+                        /*
+                         * O webhook reconcilia pelo reference_id.
+                         * Sem order_id não existe consulta direta segura.
+                         */
+                        continue;
+                    }
+
+                    $pagbank = new PagBankService();
+                    $remote =
+                        $pagbank->getOrder($orderId);
+
+                    $consulted++;
+
+                    PagamentoRepository::setPagBank(
+                        $id,
+                        $remote
                     );
                 } else {
-                    $remote = $asaas->getPayment($asaasId);
-                }
-
-                if ($asaasId === '') {
                     continue;
                 }
 
-                $consulted++;
-
-                PagamentoRepository::updateWebhook(
-                    $asaasId,
-                    (string)($remote['status'] ?? 'PENDING'),
-                    '',
-                    self::remotePaymentDate($remote),
-                    $remote
-                );
-
                 $after = PagamentoRepository::byId($id);
-                $afterStatus = (string)($after['status'] ?? $beforeStatus);
+                $afterStatus = (string)(
+                    $after['status'] ?? $beforeStatus
+                );
 
                 if ($afterStatus !== $beforeStatus) {
                     $changed++;
@@ -248,7 +289,8 @@ final class PagamentoAdminService
             } catch (Throwable $e) {
                 $errors[] = [
                     'idPagamento' => $id,
-                    'mensagem' => $e->getMessage(),
+                    'mensagem' =>
+                        $provider . ': ' . $e->getMessage(),
                 ];
             }
         }

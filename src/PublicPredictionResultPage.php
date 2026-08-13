@@ -104,16 +104,24 @@ final class PublicPredictionResultPage
                 content="width=device-width,initial-scale=1"
             >
 
-            <title><?= $e($title) ?> - Resultado do Palpite</title>
+            <title><?= $e(
+                SiteSettings::pageTitle(
+                    $title . ' - Resultado do Palpite'
+                )
+            ) ?></title>
 
             <meta
                 name="description"
-                content="Resultado do palpite e placar do jogo"
+                content="<?= $e(
+                    SiteSettings::description()
+                ) ?>"
             >
+
+            <?php SiteSettings::renderFavicon(); ?>
 
             <link
                 rel="stylesheet"
-                href="<?= $e(APP_URL) ?>/assets/css/app.css?v=1.7.7"
+                href="<?= $e(APP_URL) ?>/assets/css/app.css?v=1.8.9"
             >
 
             <?= AnalyticsService::renderHead() ?>
@@ -125,8 +133,11 @@ final class PublicPredictionResultPage
                 href="<?= $e(APP_URL) ?>/"
                 class="public-brand"
             >
-                <strong>Checkout</strong>
-                <span>IECLB Parobé</span>
+                <strong>
+                    <?= $e(
+                        SiteSettings::title()
+                    ) ?>
+                </strong>
             </a>
         </header>
 

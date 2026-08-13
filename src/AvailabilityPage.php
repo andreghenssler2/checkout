@@ -117,15 +117,32 @@ final class AvailabilityPage
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1">
             <meta name="robots" content="noindex,follow">
-            <title><?= $e($titulo) ?> - Checkout IECLB Parobé</title>
-            <link rel="stylesheet" href="<?= $e($home) ?>assets/css/app.css">
+            <title><?= $e(
+                SiteSettings::pageTitle(
+                    $titulo
+                )
+            ) ?></title>
+
+            <meta
+                name="description"
+                content="<?= $e(
+                    SiteSettings::description()
+                ) ?>"
+            >
+
+            <?php SiteSettings::renderFavicon(); ?>
+
+            <link rel="stylesheet" href="<?= $e($home) ?>assets/css/app.css?v=1.8.9">
         </head>
         <body class="bg unavailable-body">
 
         <header class="public-head">
             <a href="<?= $e($home) ?>" class="public-brand">
-                <strong>Checkout</strong>
-                <span>IECLB Parobé</span>
+                <strong>
+                    <?= $e(
+                        SiteSettings::title()
+                    ) ?>
+                </strong>
             </a>
         </header>
 

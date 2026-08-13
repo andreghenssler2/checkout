@@ -17,10 +17,12 @@ final class EmailSettings
                 "INSERT INTO configuracoes_email (
                     idConfiguracao,
                     ativo,
+                    rastrear_abertura,
                     remetente_nome,
                     remetente_email,
                     reply_to
                  ) VALUES (
+                    1,
                     1,
                     1,
                     'IECLB Parobé',
@@ -40,5 +42,14 @@ final class EmailSettings
     public static function enabled(): bool
     {
         return (int)(self::get()['ativo'] ?? 0) === 1;
+    }
+
+
+    public static function trackingEnabled(): bool
+    {
+        return (int)(
+            self::get()['rastrear_abertura']
+            ?? 1
+        ) === 1;
     }
 }

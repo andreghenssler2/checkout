@@ -9,13 +9,15 @@ final class PagamentoRepository
         int $donorId,
         string $code,
         float $value,
-        string $method
+        string $method,
+        string $provider = 'Asaas'
     ): int {
         $stmt = Database::connection()->prepare(
             "INSERT INTO pagamentos (
-                idOferta,idPalpite,idDoador,codigo,valor,formaPagamento,status
+                idOferta,idPalpite,idDoador,codigo,valor,
+                formaPagamento,provedor,status
              ) VALUES (
-                :o,NULL,:d,:c,:v,:f,'Pendente'
+                :o,NULL,:d,:c,:v,:f,:pr,'Pendente'
              )"
         );
         $stmt->execute([
@@ -24,6 +26,7 @@ final class PagamentoRepository
             ':c' => $code,
             ':v' => $value,
             ':f' => $method,
+            ':pr' => $provider,
         ]);
         return (int)Database::connection()->lastInsertId();
     }
@@ -33,13 +36,15 @@ final class PagamentoRepository
         int $donorId,
         string $code,
         float $value,
-        string $method
+        string $method,
+        string $provider = 'Asaas'
     ): int {
         $stmt = Database::connection()->prepare(
             "INSERT INTO pagamentos (
-                idOferta,idPalpite,idDoador,codigo,valor,formaPagamento,status
+                idOferta,idPalpite,idDoador,codigo,valor,
+                formaPagamento,provedor,status
              ) VALUES (
-                NULL,:p,:d,:c,:v,:f,'Pendente'
+                NULL,:p,:d,:c,:v,:f,:pr,'Pendente'
              )"
         );
         $stmt->execute([
@@ -48,8 +53,40 @@ final class PagamentoRepository
             ':c' => $code,
             ':v' => $value,
             ':f' => $method,
+            ':pr' => $provider,
         ]);
         return (int)Database::connection()->lastInsertId();
+    }
+
+    public static function setGateway(
+        int $id,
+        string $provider,
+        array $response,
+        array $extra = []
+    ): void {
+        if ($provider === 'Asaas') {
+            self::setAsaas(
+                $id,
+                $response,
+                $extra
+            );
+            return;
+        }
+
+        if ($provider === 'PagBank') {
+            self::setPagBank(
+                $id,
+                $response,
+                $extra
+            );
+            return;
+        }
+
+        throw new RuntimeException(
+            'Persistência do provedor '
+            . $provider
+            . ' ainda não implementada.'
+        );
     }
 
     public static function setAsaas(int $id, array $response, array $extra = []): void
@@ -59,6 +96,9 @@ final class PagamentoRepository
 
         $stmt = Database::connection()->prepare(
             'UPDATE pagamentos SET
+                provedor=:pr,
+                provedorPaymentId=:p,
+                provedorStatus=:s,
                 asaasPaymentId=:p,
                 asaasStatus=:s,
                 invoiceUrl=:u,
@@ -77,6 +117,7 @@ final class PagamentoRepository
              WHERE idPagamento=:id'
         );
         $stmt->execute([
+            ':pr' => 'Asaas',
             ':p' => $response['id'] ?? null,
             ':s' => $response['status'] ?? null,
             ':u' => $response['invoiceUrl'] ?? null,
@@ -95,6 +136,219 @@ final class PagamentoRepository
         self::syncLinkedPalpite($id, $status);
     }
 
+
+public static function setPagBank(
+    int $id,
+    array $order,
+    array $extra = []
+): void {
+    $orderId = PagBankPaymentMapper::orderId($order);
+
+    if ($orderId === '') {
+        throw new RuntimeException(
+            'O PagBank não retornou o ID do pedido.'
+        );
+    }
+
+    $providerStatus =
+        PagBankPaymentMapper::providerStatus($order);
+
+    $localStatus =
+        PagBankPaymentMapper::localStatus($order);
+
+    $pix = PagBankPaymentMapper::pixData(
+        $order,
+        $extra['encodedImage'] ?? null
+    );
+
+    if (
+        !empty($extra['payload'])
+        && empty($pix['payload'])
+    ) {
+        $pix['payload'] = $extra['payload'];
+    }
+
+    if (
+        !empty($extra['expirationDate'])
+        && empty($pix['expirationDate'])
+    ) {
+        $pix['expirationDate'] =
+            $extra['expirationDate'];
+    }
+
+    $boleto =
+        PagBankPaymentMapper::boletoData($order);
+
+    foreach (
+        [
+            'identificationField',
+            'bankSlipUrl',
+            'dueDate',
+        ]
+        as $field
+    ) {
+        if (
+            !empty($extra[$field])
+            && empty($boleto[$field])
+        ) {
+            $boleto[$field] = $extra[$field];
+        }
+    }
+
+    $paidAt =
+        PagBankPaymentMapper::paidAt($order);
+
+    $localPayment = self::byId($id);
+
+    $financial = $localPayment
+        ? PagBankFeeService::calculate(
+            (string)(
+                $localPayment['formaPagamento']
+                ?? ''
+            ),
+            (float)(
+                $localPayment['valor']
+                ?? 0
+            )
+        )
+        : [
+            'fee' => null,
+            'net' => null,
+        ];
+
+    Database::connection()->prepare(
+        'UPDATE pagamentos SET
+            provedor=\'PagBank\',
+            provedorPaymentId=:pid,
+            provedorStatus=:ps,
+            status=:st,
+            valorLiquido=COALESCE(valorLiquido,:vl),
+            taxa=COALESCE(taxa,:tx),
+            invoiceUrl=COALESCE(:iu,invoiceUrl),
+            pixQrCode=COALESCE(:q,pixQrCode),
+            pixCopiaCola=COALESCE(:pc,pixCopiaCola),
+            pixExpiracao=COALESCE(:pe,pixExpiracao),
+            bankSlipUrl=COALESCE(:bu,bankSlipUrl),
+            boletoLinhaDigitavel=COALESCE(:bl,boletoLinhaDigitavel),
+            dataVencimento=COALESCE(:dv,dataVencimento),
+            dataPagamento=CASE
+                WHEN :stPago=\'Pago\'
+                THEN COALESCE(:dp,dataPagamento,NOW())
+                ELSE dataPagamento
+            END,
+            erro=NULL,
+            atualizadoEm=NOW()
+         WHERE idPagamento=:id'
+    )->execute([
+        ':pid' => $orderId,
+        ':ps' => $providerStatus,
+        ':st' => $localStatus,
+        ':vl' => $financial['net'] ?? null,
+        ':tx' => $financial['fee'] ?? null,
+        ':iu' => PagBankPaymentMapper::invoiceUrl($order),
+        ':q' => $pix['encodedImage'] ?? null,
+        ':pc' => $pix['payload'] ?? null,
+        ':pe' => self::dateTime(
+            $pix['expirationDate'] ?? null
+        ),
+        ':bu' => $boleto['bankSlipUrl'] ?? null,
+        ':bl' => $boleto['identificationField'] ?? null,
+        ':dv' => self::dateOnly(
+            $boleto['dueDate'] ?? null
+        ),
+        ':stPago' => $localStatus,
+        ':dp' => $paidAt,
+        ':id' => $id,
+    ]);
+
+    self::syncLinkedPalpite(
+        $id,
+        $localStatus
+    );
+}
+
+public static function byProviderPayment(
+    string $provider,
+    string $providerPaymentId
+): ?array {
+    $stmt = Database::connection()->prepare(
+        'SELECT *
+         FROM pagamentos
+         WHERE provedor=:p
+           AND provedorPaymentId=:id
+         LIMIT 1'
+    );
+
+    $stmt->execute([
+        ':p' => trim($provider),
+        ':id' => trim($providerPaymentId),
+    ]);
+
+    $row = $stmt->fetch();
+
+    return $row ?: null;
+}
+
+public static function linkPagBankByCode(
+    string $code,
+    array $order
+): ?array {
+    $code = trim($code);
+    $orderId =
+        PagBankPaymentMapper::orderId($order);
+
+    if ($code === '' || $orderId === '') {
+        return null;
+    }
+
+    $stmt = Database::connection()->prepare(
+        'SELECT *
+         FROM pagamentos
+         WHERE codigo=:c
+         LIMIT 1'
+    );
+
+    $stmt->execute([
+        ':c' => $code,
+    ]);
+
+    $local = $stmt->fetch();
+
+    if (!$local) {
+        return null;
+    }
+
+    $provider = trim(
+        (string)($local['provedor'] ?? '')
+    );
+
+    if (
+        $provider !== ''
+        && $provider !== 'PagBank'
+    ) {
+        return null;
+    }
+
+    $currentId = trim(
+        (string)($local['provedorPaymentId'] ?? '')
+    );
+
+    if (
+        $currentId !== ''
+        && $currentId !== $orderId
+    ) {
+        return null;
+    }
+
+    self::setPagBank(
+        (int)$local['idPagamento'],
+        $order
+    );
+
+    return self::byId(
+        (int)$local['idPagamento']
+    );
+}
 
     /**
      * Salva o QR Code depois que a cobrança já foi criada no Asaas.
@@ -198,6 +452,9 @@ final class PagamentoRepository
 
         Database::connection()->prepare(
             'UPDATE pagamentos SET
+                provedor=:pr,
+                provedorPaymentId=:a,
+                provedorStatus=:s,
                 asaasPaymentId=:a,
                 asaasStatus=:s,
                 invoiceUrl=:i,
@@ -210,6 +467,7 @@ final class PagamentoRepository
                 atualizadoEm=NOW()
              WHERE idPagamento=:id'
         )->execute([
+            ':pr' => 'Asaas',
             ':a' => $asaasId,
             ':s' => $remotePayment['status'] ?? null,
             ':i' => $remotePayment['invoiceUrl'] ?? null,
@@ -366,6 +624,8 @@ final class PagamentoRepository
         Database::connection()->prepare(
             'UPDATE pagamentos SET
                 status=:st,
+                provedor=:pr,
+                provedorStatus=:as,
                 asaasStatus=:as,
                 dataPagamento=:dp,
                 valorLiquido=COALESCE(:vl,valorLiquido),
@@ -373,6 +633,7 @@ final class PagamentoRepository
                 atualizadoEm=NOW()
              WHERE idPagamento=:id'
         )->execute([
+            ':pr' => 'Asaas',
             ':st' => $status,
             ':as' => $asaasStatus ?: null,
             ':dp' => $paid,
