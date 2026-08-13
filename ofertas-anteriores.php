@@ -110,16 +110,24 @@ function previousPageUrl(
         content="width=device-width,initial-scale=1"
     >
 
-    <title>Ofertas anteriores - Checkout IECLB Parobé</title>
+    <title><?= Support::e(
+        SiteSettings::pageTitle(
+            'Ofertas anteriores'
+        )
+    ) ?></title>
 
     <meta
         name="description"
-        content="Histórico de ofertas da IECLB Parobé"
+        content="<?= Support::e(
+            SiteSettings::description()
+        ) ?>"
     >
+
+    <?php SiteSettings::renderFavicon(); ?>
 
     <link
         rel="stylesheet"
-        href="<?= APP_URL ?>/assets/css/app.css?v=1.7.0"
+        href="<?= APP_URL ?>/assets/css/app.css?v=1.8.9"
     >
 
     <?= AnalyticsService::renderHead() ?>
@@ -131,8 +139,11 @@ function previousPageUrl(
         href="<?= APP_URL ?>/"
         class="public-brand"
     >
-        <strong>Checkout</strong>
-        <span>IECLB Parobé</span>
+        <strong>
+            <?= Support::e(
+                SiteSettings::title()
+            ) ?>
+        </strong>
     </a>
 </header>
 

@@ -4,7 +4,14 @@ require_once __DIR__ . '/bootstrap.php';
 $code = trim((string)($_GET['codigo'] ?? ''));
 $payment = PagamentoRepository::byCode($code);
 
+$provider = $payment
+    ? trim(
+        (string)($payment['provedor'] ?? 'Asaas')
+    )
+    : 'Asaas';
+
 $sandboxPixDisabled = $payment
+    && $provider === 'Asaas'
     && AsaasSettings::activeEnvironment() === 'sandbox'
     && str_contains(
         (string)($payment['erro'] ?? ''),
@@ -29,8 +36,20 @@ $paymentTitle = match ((string)$payment['formaPagamento']) {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Pagamento - Checkout</title>
-    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/app.css">
+    <title><?= Support::e(
+        SiteSettings::pageTitle('Pagamento')
+    ) ?></title>
+
+    <meta
+        name="description"
+        content="<?= Support::e(
+            SiteSettings::description()
+        ) ?>"
+    >
+
+    <?php SiteSettings::renderFavicon(); ?>
+
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/app.css?v=1.8.9">
     <?= AnalyticsService::renderHead() ?>
 </head>
 <body class="bg">
@@ -117,7 +136,11 @@ $paymentTitle = match ((string)$payment['formaPagamento']) {
         <?php elseif (
             $payment['formaPagamento'] === 'PIX'
             && $payment['status'] !== 'Pago'
-            && !empty($payment['asaasPaymentId'])
+            && !empty(
+                $payment['provedorPaymentId']
+                ?? $payment['asaasPaymentId']
+                ?? null
+            )
         ): ?>
             <?php if ($sandboxPixDisabled): ?>
                 <div class="alert muted pix-charge-created">
@@ -148,7 +171,10 @@ $paymentTitle = match ((string)$payment['formaPagamento']) {
                 </p>
             <?php else: ?>
                 <div class="alert muted pix-charge-created">
-                    <strong>Cobrança criada no Asaas.</strong>
+                    <strong>
+                        Cobrança criada no
+                        <?= Support::e($provider) ?>.
+                    </strong>
                     <p>
                         O pagamento está registrado, porém o QR Code Pix
                         ainda não pôde ser carregado nesta aplicação.
@@ -296,10 +322,14 @@ $paymentTitle = match ((string)$payment['formaPagamento']) {
                 Estamos aguardando a atualização do pagamento.
             </p>
         <?php endif; ?>
-        <div class="payment-transparency-short">
-            <strong>Transparência:</strong>
-            <?= Support::e(TransparencyNotice::shortText()) ?>
-        </div>
+        <?php if (TransparencyNotice::isVisible()): ?>
+            <div class="payment-transparency-short">
+                <strong>Transparência:</strong>
+                <?= Support::e(
+                    TransparencyNotice::shortText()
+                ) ?>
+            </div>
+        <?php endif; ?>
     </div>
 </main>
 

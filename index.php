@@ -98,16 +98,22 @@ function offerPeriodLabel(array $offer): string
         content="width=device-width,initial-scale=1"
     >
 
-    <title>Checkout - IECLB Parobé</title>
+    <title><?= Support::e(
+        SiteSettings::pageTitle()
+    ) ?></title>
 
     <meta
         name="description"
-        content="Campanhas de ofertas da IECLB Parobé"
+        content="<?= Support::e(
+            SiteSettings::description()
+        ) ?>"
     >
+
+    <?php SiteSettings::renderFavicon(); ?>
 
     <link
         rel="stylesheet"
-        href="<?= APP_URL ?>/assets/css/app.css?v=1.7.0"
+        href="<?= APP_URL ?>/assets/css/app.css?v=1.8.9"
     >
 
     <?= AnalyticsService::renderHead() ?>
@@ -115,9 +121,12 @@ function offerPeriodLabel(array $offer): string
 
 <body class="bg">
 <header class="public-head">
-    <div>
-        <strong>Checkout</strong>
-        <span>IECLB Parobé</span>
+    <div class="public-brand">
+        <strong>
+            <?= Support::e(
+                SiteSettings::title()
+            ) ?>
+        </strong>
     </div>
 </header>
 

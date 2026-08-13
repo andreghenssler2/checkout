@@ -59,10 +59,26 @@ $options = PalpiteRepository::options((int)$event['idEventoPalpite']);
 $values = PalpiteRepository::values((int)$event['idEventoPalpite']);
 $min = max(APP_MIN_OFFER, (float)$event['valor_minimo']);
 
+$pixProvider =
+    PaymentGatewaySettings::providerFor('PIX');
+
+$cartaoProvider =
+    PaymentGatewaySettings::providerFor('Cartao');
+
 $pixStatus = PixAvailabilityService::status(true);
+
 $pixConfigurado = !empty($event['pix_ativo']);
 $pixDisponivel = $pixConfigurado
     && PixAvailabilityService::checkoutAvailable();
+
+$cartaoConfigurado =
+    !empty($event['cartao_ativo']);
+
+$cartaoDisponivel =
+    $cartaoConfigurado
+    && PaymentGatewayManager::configuredFor(
+        'Cartao'
+    );
 
 $checkoutError = (string)($_SESSION['_palpite_error'] ?? '');
 unset($_SESSION['_palpite_error']);
@@ -74,15 +90,32 @@ $initialValue = $values ? (float)$values[0]['valor'] : $min;
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title><?= Support::e($event['titulo']) ?> - Palpite</title>
-    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/app.css?v=1.7.3">
+    <title><?= Support::e(
+        SiteSettings::pageTitle(
+            (string)$event['titulo']
+        )
+    ) ?></title>
+
+    <meta
+        name="description"
+        content="<?= Support::e(
+            SiteSettings::description()
+        ) ?>"
+    >
+
+    <?php SiteSettings::renderFavicon(); ?>
+
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/app.css?v=1.8.9">
     <?= AnalyticsService::renderHead() ?>
 </head>
 <body class="bg">
 <header class="public-head">
     <a href="<?= APP_URL ?>/">
-        <strong>Checkout</strong>
-        <span>IECLB Parobé</span>
+        <strong>
+            <?= Support::e(
+                SiteSettings::title()
+            ) ?>
+        </strong>
     </a>
 </header>
 
@@ -199,13 +232,14 @@ $initialValue = $values ? (float)$values[0]['valor'] : $min;
                 <div class="payment-method-disabled">
                     <span>◆ <b>PIX indisponível</b></span>
                     <small>
-                        A integração Asaas ou a API Key do ambiente atual
-                        não está disponível para processar PIX.
+                        O provedor PIX configurado
+                        (<?= Support::e($pixProvider) ?>)
+                        não está disponível neste momento.
                     </small>
                 </div>
             <?php endif; ?>
 
-            <?php if (!empty($event['cartao_ativo'])): ?>
+            <?php if ($cartaoDisponivel): ?>
                 <label>
                     <input
                         type="radio"
@@ -215,6 +249,15 @@ $initialValue = $values ? (float)$values[0]['valor'] : $min;
                     >
                     <span>▣ <b>Cartão de crédito</b></span>
                 </label>
+            <?php elseif ($cartaoConfigurado): ?>
+                <div class="payment-method-disabled">
+                    <span>▣ <b>Cartão indisponível</b></span>
+                    <small>
+                        O provedor de Cartão configurado
+                        (<?= Support::e($cartaoProvider) ?>)
+                        ainda não está disponível.
+                    </small>
+                </div>
             <?php endif; ?>
         </div>
 
@@ -257,13 +300,68 @@ $initialValue = $values ? (float)$values[0]['valor'] : $min;
                     </select>
                 </label>
                 <label>CVV*<input name="card_ccv" inputmode="numeric" autocomplete="cc-csc" maxlength="4"></label>
-                <label>CPF do titular*<input name="holder_cpf" inputmode="numeric"></label>
-                <label>CEP*<input name="holder_cep" inputmode="numeric" autocomplete="postal-code"></label>
-                <label>Número*<input name="holder_numero" autocomplete="address-line2"></label>
-                <label class="full">Complemento<input name="holder_complemento"></label>
+                <label>
+                    CPF do titular*
+                    <input name="holder_cpf" inputmode="numeric">
+                </label>
+
+                <?php if ($cartaoProvider === 'Asaas'): ?>
+                    <label>
+                        CEP*
+                        <input
+                            name="holder_cep"
+                            inputmode="numeric"
+                            autocomplete="postal-code"
+                        >
+                    </label>
+
+                    <label>
+                        Número*
+                        <input
+                            name="holder_numero"
+                            autocomplete="address-line2"
+                        >
+                    </label>
+
+                    <label class="full">
+                        Complemento
+                        <input name="holder_complemento">
+                    </label>
+                <?php else: ?>
+                    <input
+                        type="hidden"
+                        name="pagbank_encrypted_card"
+                        id="pagbankEncryptedCard"
+                        value=""
+                    >
+                <?php endif; ?>
             </div>
+            <?php if (
+                $cartaoProvider === 'PagBank'
+                && PagBankSettings::activeEnvironment() === 'sandbox'
+            ): ?>
+                <div class="pagbank-sandbox-card-note">
+                    <strong>Ambiente Sandbox PagBank</strong>
+                    <p>
+                        Use somente cartões de teste PagBank.
+                        Exemplo aprovado:
+                        <code>4539620659922097</code>,
+                        validade <code>12/2026</code>,
+                        CVV <code>123</code>.
+                    </p>
+                </div>
+            <?php endif; ?>
+
             <p class="privacy">
-                Os dados do cartão são enviados ao Asaas para processamento e não são gravados pelo sistema.
+                <?php if ($cartaoProvider === 'PagBank'): ?>
+                    Número, validade e CVV são criptografados no navegador
+                    pelo SDK do PagBank. O Checkout envia ao servidor apenas
+                    o cartão criptografado e não grava os dados sensíveis.
+                <?php else: ?>
+                    Os dados do cartão são enviados ao provedor
+                    <?= Support::e($cartaoProvider) ?> para processamento
+                    e não são gravados pelo sistema.
+                <?php endif; ?>
             </p>
         </div>
 
@@ -302,8 +400,29 @@ $initialValue = $values ? (float)$values[0]['valor'] : $min;
 
 <script>
 window.offerMin = <?= json_encode($min) ?>;
+window.checkoutBoletoRequiresAddress = false;
+window.checkoutCardProvider =
+    <?= json_encode($cartaoProvider) ?>;
+window.checkoutPagBankPublicKey =
+    <?= json_encode(
+        $cartaoProvider === 'PagBank'
+            ? PagBankSettings::publicKey()
+            : ''
+    ) ?>;
+window.checkoutPagBankEnvironment =
+    <?= json_encode(
+        $cartaoProvider === 'PagBank'
+            ? PagBankSettings::activeEnvironment()
+            : ''
+    ) ?>;
 </script>
-<script src="<?= APP_URL ?>/assets/js/checkout.js"></script>
+
+<?php if ($cartaoProvider === 'PagBank' && $cartaoDisponivel): ?>
+    <script src="https://assets.pagseguro.com.br/checkout-sdk-js/rc/dist/browser/pagseguro.min.js"></script>
+    <script src="<?= APP_URL ?>/assets/js/pagbank-card.js?v=1.8.9"></script>
+<?php endif; ?>
+
+<script src="<?= APP_URL ?>/assets/js/checkout.js?v=1.8.9"></script>
 <script>
 (() => {
     const radios = [...document.querySelectorAll('input[name="palpite_opcao"]')];

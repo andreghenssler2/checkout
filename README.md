@@ -1,4 +1,4 @@
-# Checkout Andre — v1.4.6
+# Checkout IECLB Parobé — v1.4.6
 
 Aplicação independente para:
 
@@ -1430,3 +1430,629 @@ A regra de ganhador continua sendo: palpite exato do placar final com
 pagamento confirmado.
 
 Não é necessária alteração no banco de dados.
+
+
+## Resumo público das opções de Palpite — v1.7.4
+
+A tela pública exibida após o encerramento dos Palpites agora mostra também
+a distribuição das participações confirmadas.
+
+Exemplo:
+
+`Partida: Copa do Mundo`
+
+`Palpites`
+
+`3 para 0 x 0`
+
+`2 para 1 x 0`
+
+`0 para 2 x 1`
+
+Todas as opções configuradas no formulário aparecem, mesmo quando ainda
+possuem zero participações.
+
+Se a opção `Outro` estiver habilitada, ela também aparece com sua quantidade
+total, sem mostrar o texto personalizado digitado pelos participantes.
+
+A contagem pública considera somente Palpites com pagamento confirmado, pois
+são os mesmos que podem concorrer como ganhadores.
+
+Nenhum nome, CPF, telefone, e-mail ou outra identificação de participante é
+exibido.
+
+Não é necessária alteração no banco de dados.
+
+
+## Palpites digitados em "Outro" e destaque do vencedor — v1.7.5
+
+Na tela pública de resultado dos Palpites:
+
+- as opções normais continuam mostrando quantidade por opção;
+- quando `Outro` estiver habilitado, os textos digitados pelos participantes
+  passam a aparecer;
+- palpites personalizados iguais são agrupados e recebem uma única contagem;
+- nenhum nome, CPF, telefone ou e-mail é exibido junto ao texto;
+- quando o jogo estiver Finalizado, a opção cujo placar corresponde ao
+  resultado final recebe destaque visual e o selo `🏆 Placar vencedor`;
+- o destaque funciona tanto em opções cadastradas quanto em palpites
+  digitados através de `Outro`.
+
+Exemplo:
+
+`3 para 0 x 0`
+
+`2 para 1 x 0   🏆 Placar vencedor`
+
+`1 para 2 x 1`
+
+`1 para Palpite digitado: 3 x 2`
+
+A atualização automática enquanto o resultado ainda não estiver Finalizado
+continua funcionando normalmente.
+
+Não é necessária alteração no banco de dados.
+
+
+## Sem participações — v1.7.6
+
+Quando um Palpite não possuir nenhuma participação com pagamento confirmado,
+a tela pública de resultado não lista mais todas as opções com `0`.
+
+Agora aparece:
+
+`Sem participações`
+
+`Não houve nenhum palpite com pagamento confirmado para esta partida.`
+
+Se o jogo já estiver Finalizado, o resultado também informa:
+
+`Sem participações. Não houve palpites confirmados nesta partida, portanto
+não houve ganhador.`
+
+Além disso, uma opção que coincida com o placar final só recebe o selo
+`🏆 Placar vencedor` quando existir pelo menos uma participação confirmada
+naquela opção.
+
+A atualização automática enquanto o jogo ainda aguarda finalização continua
+funcionando normalmente.
+
+Não é necessária alteração no banco de dados.
+
+
+## Histórico público de Palpites — v1.7.7
+
+Nova página pública:
+
+`/palpites/historico`
+
+A página separa os jogos em:
+
+- Jogos a serem realizados;
+- Jogos realizados.
+
+Nos próximos jogos aparecem nome, equipes, data/hora, valor mínimo e botão
+`Palpitar`.
+
+Nos jogos realizados aparecem nome, placar, quantidade de Palpites pagos,
+valor total recebido e botão `Ver histórico`.
+
+Quando não houver pagamento confirmado, aparece `Sem valor recebido`.
+
+O botão `Ver histórico` abre a tela pública do resultado da partida, sem dados
+pessoais dos participantes.
+
+Ao chegar o horário de `data_jogo`, novos Palpites são bloqueados tanto na
+interface quanto no backend e o link público passa a mostrar somente o
+histórico/resultado.
+
+Não é necessária alteração no banco de dados.
+
+
+## Multi-Gateway — v1.8.0
+
+Foi criada a base para o Checkout trabalhar com mais de um provedor de
+pagamentos sem depender diretamente do Asaas.
+
+Arquitetura nova:
+
+- `PaymentGatewayInterface`;
+- `PaymentGatewayManager`;
+- `PaymentGatewaySettings`;
+- `AsaasPaymentGateway`;
+- `DoadorGatewayRepository`.
+
+O Asaas continua como provedor padrão de PIX, Cartão e Boleto.
+
+Nova página:
+
+`Admin > Provedores`
+
+O banco passa a registrar `provedor`, `provedorPaymentId` e
+`provedorStatus`, mantendo os campos antigos do Asaas por compatibilidade.
+
+Também foi criada `doadores_provedores`, para permitir IDs de cliente
+diferentes em cada gateway.
+
+PagBank e Sicredi aparecem como próximos provedores, mas não podem ser
+selecionados enquanto seus adapters/credenciais não estiverem implementados.
+
+Execute:
+
+`database/migrations/20260812_multigateway_v1.8.0.sql`
+
+
+## PagBank — v1.8.1
+
+A camada Multi-Gateway agora possui integração PagBank para:
+
+- PIX;
+- Boleto;
+- Webhook de atualização de status.
+
+### Configuração
+
+Para banco existente na v1.8.0, execute primeiro:
+
+`database/migrations/20260812_pagbank_v1.8.1.sql`
+
+Depois acesse:
+
+`Admin > PagBank`
+
+Informe o token do ambiente, ative a integração, salve e utilize o teste de
+conexão/chave pública.
+
+Em seguida acesse:
+
+`Admin > Provedores`
+
+e escolha `PagBank` para PIX e/ou Boleto.
+
+### PIX
+
+O Checkout cria um pedido PagBank pela API Order com `qr_codes`.
+
+A validade solicitada pelo Checkout é de 1 hora.
+
+A resposta é convertida para os campos já utilizados pelo Checkout:
+
+- QR Code;
+- Pix Copia e Cola;
+- expiração;
+- status.
+
+### Boleto
+
+Quando o PagBank é selecionado como provedor de Boleto, a Oferta solicita
+endereço completo do pagador somente quando Boleto for escolhido:
+
+- CEP;
+- logradouro;
+- número;
+- bairro;
+- cidade;
+- UF;
+- complemento opcional.
+
+A resposta é convertida para:
+
+- linha digitável;
+- link do boleto;
+- vencimento;
+- status.
+
+Palpites continuam sem Boleto.
+
+### Webhook
+
+Endpoint:
+
+`/api/pagbank/webhook.php`
+
+A URL é enviada em `notification_urls` dos pedidos PagBank.
+
+A autenticidade é validada usando o corpo bruto recebido e o header
+`x-authenticity-token`, com:
+
+`SHA256(token + "-" + payload_bruto)`
+
+A mesma URL reconhece os tokens cadastrados de Sandbox e Produção.
+
+Eventos idênticos são deduplicados pelo SHA-256 do payload bruto.
+
+### Cartão PagBank
+
+O cartão PagBank ainda não pode ser escolhido em `Admin > Provedores`.
+
+A v1.8.1 já deixa preparada a etapa segura:
+
+- consulta/criação da chave pública no Admin;
+- armazenamento da chave pública por ambiente;
+- `assets/js/pagbank-card.js`;
+- integração prevista com `PagSeguro.encryptCard()`;
+- o backend deverá receber apenas o cartão criptografado quando a função for
+  ativada.
+
+O cartão pelo Asaas continua funcionando normalmente.
+
+
+## PagBank — e-mail do comprador — v1.8.2
+
+O PagBank rejeita a criação do pedido quando `customer.email` é igual ao
+e-mail da conta vendedora que está recebendo o pagamento.
+
+Exemplo do retorno original:
+
+`[40002] buyer email must not be equals to merchant email`
+
+A v1.8.2 traduz esse retorno para a mensagem pública:
+
+`O e-mail do pagador não pode ser o mesmo e-mail cadastrado na conta PagBank.
+Informe outro e-mail para o comprador e tente novamente.`
+
+Também foi incluído um aviso em `Admin > PagBank`.
+
+Não há alteração no banco de dados.
+
+
+## Cartão de Crédito PagBank — v1.8.3
+
+O PagBank agora pode ser selecionado também como provedor de Cartão de
+Crédito em:
+
+`Admin > Provedores`
+
+Antes de selecionar, acesse:
+
+`Admin > PagBank`
+
+e utilize:
+
+`Testar conexão / preparar chave pública`
+
+### Segurança
+
+Quando Cartão PagBank é selecionado:
+
+1. o Checkout carrega o SDK oficial PagBank no navegador;
+2. `PagSeguro.encryptCard()` criptografa número, validade e CVV;
+3. o formulário desabilita número, validade e CVV antes do POST;
+4. o backend recebe somente `pagbank_encrypted_card`, nome e CPF do titular;
+5. a cobrança envia o criptograma em
+   `charges.payment_method.card.encrypted`;
+6. `store=false`, portanto o cartão não é solicitado para armazenamento;
+7. `installments=1` e `capture=true`, mantendo o Checkout atual em pagamento
+   à vista.
+
+Os fluxos Asaas continuam iguais.
+
+### Ofertas e Palpites
+
+Cartão PagBank funciona nos dois fluxos:
+
+- Oferta;
+- Palpite.
+
+Para PagBank, CEP e número do endereço do titular deixam de ser exigidos no
+cartão. Esses campos permanecem no fluxo de Cartão Asaas.
+
+Não existe alteração no banco de dados nesta versão.
+
+
+## Correção do seletor Cartão PagBank — v1.8.4
+
+Na v1.8.3 o adapter `PagBankPaymentGateway` já aceitava `Cartao`, porém o
+catálogo de métodos em `PaymentGatewayManager::implemented()` ainda listava
+o PagBank somente com:
+
+`PIX, Boleto`
+
+Por isso `Admin > Provedores` mostrava apenas `Asaas` no seletor de Cartão.
+
+A v1.8.4 corrige o catálogo para:
+
+`PIX, Cartao, Boleto`
+
+Assim o seletor de Cartão passa a exibir:
+
+- Asaas
+- PagBank
+
+A chave pública continua obrigatória para que Cartão PagBank fique
+efetivamente disponível no Checkout.
+
+Não existe alteração no banco de dados.
+
+
+## Correção Cartão PagBank — v1.8.5
+
+A estrutura do titular no payload do Cartão PagBank foi corrigida.
+
+Antes, o Checkout enviava o titular como irmão de `card`:
+
+`charges[0].payment_method.holder`
+
+A API oficial do PagBank exige:
+
+`charges[0].payment_method.card.holder`
+
+Agora o payload utiliza:
+
+- `payment_method.type = CREDIT_CARD`;
+- `payment_method.installments = 1`;
+- `payment_method.capture = true`;
+- `payment_method.card.encrypted`;
+- `payment_method.card.store = false`;
+- `payment_method.card.holder.name`;
+- `payment_method.card.holder.tax_id`.
+
+Também foi melhorado o tratamento de erro. Quando o PagBank devolver
+`parameter_name`, o Checkout passa a mostrar exatamente qual campo foi
+rejeitado, por exemplo:
+
+`[40002] invalid_parameter — campo: charges[0].payment_method.card.encrypted`
+
+Nenhum dado sensível do cartão é incluído na mensagem.
+
+Não existe alteração no banco de dados.
+
+
+## Correção de criptografia do Cartão PagBank — v1.8.6
+
+O erro:
+
+`[40002] invalid_parameter — campo: charges[0].payment_method.card.encrypted`
+
+indica que o PagBank não conseguiu validar/descriptografar o criptograma do
+cartão.
+
+A v1.8.6 corrige e reforça três pontos:
+
+1. O payload volta a seguir o exemplo oficial de Cartão da API Order:
+   `payment_method.card.encrypted` e `payment_method.holder` no mesmo nível
+   dentro de `payment_method`.
+2. No Sandbox, o Checkout passa a utilizar sempre a chave pública padrão
+   oficial documentada pelo PagBank, evitando chave de outra conta/ambiente.
+3. Ao trocar o token de Produção, a chave pública de Produção armazenada é
+   invalidada e precisa ser consultada novamente pelo botão de teste.
+
+No Sandbox, a interface também lembra que cartões reais não devem ser usados.
+Um cartão oficial de teste aprovado é:
+
+- número: `4539620659922097`
+- validade: `12/2026`
+- CVV: `123`
+
+Depois da atualização, em `Admin > PagBank`, clique uma vez em:
+
+`Testar conexão / preparar chave pública`
+
+Não existe alteração no banco de dados.
+
+
+## Taxas PagBank — v1.8.7
+
+Quando o PagBank estiver configurado como provedor de uma forma de
+pagamento, o Checkout passa a usar a tabela de taxas configurada para
+calcular `taxa` e `valorLiquido` dos pagamentos PagBank.
+
+Tabela:
+
+- Débito online: 1 dia — 2,39% (referência; não oferecido no Checkout);
+- Cartão à vista, 14 dias — 4,99% + R$ 0,40;
+- Cartão à vista, 30 dias — 3,99% + R$ 0,40;
+- Pix: na hora — 1,89%;
+- Boleto: 3 dias — R$ 3,99;
+- Parcelado: pode haver taxa adicional (não habilitado nesta versão).
+
+### Prazo do Cartão
+
+Em `Admin > PagBank` existe o campo:
+
+`Prazo de recebimento do Cartão PagBank`
+
+Opções:
+
+- 14 dias;
+- 30 dias.
+
+Por padrão, instalações existentes recebem 30 dias na migração. Ajuste o
+campo para a condição contratada na conta PagBank.
+
+### Cálculo
+
+PIX:
+
+`taxa = valor × 1,89%`
+
+Boleto:
+
+`taxa = R$ 3,99`
+
+Cartão 14 dias:
+
+`taxa = valor × 4,99% + R$ 0,40`
+
+Cartão 30 dias:
+
+`taxa = valor × 3,99% + R$ 0,40`
+
+O valor líquido é:
+
+`valorLiquido = valor - taxa`
+
+A taxa calculada é gravada somente enquanto `taxa` e `valorLiquido` ainda
+estiverem vazios, preservando o histórico caso o prazo do cartão seja
+alterado posteriormente.
+
+### Transparência pública
+
+Se PIX, Cartão ou Boleto estiverem configurados para o PagBank, a caixa de
+transparência da Oferta/Palpite mostra somente as taxas PagBank que estão
+ativas naquele momento.
+
+Para banco existente, execute:
+
+`database/migrations/20260812_taxas_pagbank_v1.8.7.sql`
+
+
+## Taxas PagBank somente no administrativo — v1.8.8
+
+As taxas do PagBank continuam sendo utilizadas internamente para:
+
+- calcular `pagamentos.taxa`;
+- calcular `pagamentos.valorLiquido`;
+- alimentar relatórios administrativos;
+- configurar o prazo de recebimento do Cartão PagBank;
+- acompanhar o valor líquido no Admin.
+
+As páginas públicas de Oferta, Palpite, Pagamento e Comprovante não exibem
+percentuais, valores fixos nem prazos das tarifas do PagBank.
+
+A pessoa pagadora vê somente o texto genérico de transparência, informando
+que podem existir tarifas cobradas pelo meio de pagamento e que o valor
+líquido efetivamente recebido é repassado integralmente à IECLB Parobé.
+
+A tabela detalhada de taxas permanece disponível somente em:
+
+`Admin > PagBank`
+
+Não existe alteração no banco de dados.
+
+
+## Configurações gerais do site — v1.8.9
+
+Novo menu:
+
+`Admin > Site`
+
+O administrador pode configurar:
+
+- título do site;
+- descrição do site;
+- favicon;
+- tipo de transparência.
+
+### Título
+
+O título passa a ser utilizado:
+
+- na página inicial;
+- nos títulos das páginas de Oferta e Palpite;
+- nos históricos públicos;
+- no pagamento;
+- no comprovante;
+- nas telas de indisponibilidade;
+- no Admin.
+
+### Descrição
+
+A descrição configurada é utilizada como `meta description` nas páginas
+públicas e no Admin.
+
+### Favicon
+
+É possível enviar:
+
+- PNG;
+- JPG/JPEG;
+- WEBP;
+- ICO.
+
+Limite de 1 MB. O arquivo é salvo em `uploads/site/`.
+
+O administrador pode substituir ou remover o favicon.
+
+### Transparência
+
+Existem três modos:
+
+`Completa`
+
+Mantém a explicação detalhada sobre intermediador, parceria, eventuais
+tarifas e repasse integral do valor líquido à IECLB Parobé.
+
+`Resumida`
+
+Exibe apenas um aviso curto, sem detalhamento do intermediador:
+
+`Os pagamentos podem ter tarifas descontadas pelo meio de pagamento. O valor
+líquido efetivamente recebido é repassado integralmente (100%) à IECLB
+Parobé.`
+
+`Oculta`
+
+Não exibe a transparência nas páginas públicas de Oferta, Palpite, Pagamento
+e Comprovante.
+
+As taxas específicas dos provedores continuam ocultas da pessoa pagadora.
+
+### Banco
+
+Em banco existente, execute:
+
+`database/migrations/20260812_configuracoes_site_v1.8.9.sql`
+
+Em instalação nova, use somente `database/schema.sql`.
+
+
+## Rastreamento de abertura de e-mail — v1.9.0
+
+Em `Admin > E-mail` foi adicionada a opção:
+
+`Rastrear abertura dos e-mails enviados`
+
+Quando habilitada, cada novo e-mail recebe um token aleatório exclusivo e
+um pixel transparente de 1×1 apontando para:
+
+`/email/abertura.php?token=...`
+
+O endpoint não inicia sessão e não grava cookie.
+
+Quando a imagem é carregada, `emails_envios` registra:
+
+- `abertoEm`: primeira abertura registrada;
+- `ultimaAberturaEm`: abertura mais recente;
+- `totalAberturas`: quantidade de carregamentos do pixel.
+
+O administrador consegue identificar quem abriu porque cada registro continua
+associado ao campo `destinatario` da própria linha de `emails_envios`.
+
+### Privacidade
+
+O rastreamento desta versão não armazena:
+
+- endereço IP;
+- User-Agent;
+- localização;
+- dispositivo.
+
+### Limitações
+
+O rastreamento é indicativo e não é confirmação absoluta de leitura.
+
+Clientes de e-mail que bloqueiam imagens podem impedir o registro. Recursos de
+privacidade e proxies, incluindo Apple Mail Privacy Protection e proxies de
+imagens de Gmail/Outlook, podem carregar a imagem automaticamente ou de forma
+intermediada.
+
+### Administração
+
+`Admin > E-mail` passa a mostrar:
+
+- quantidade de e-mails rastreáveis enviados;
+- quantidade com abertura registrada;
+- taxa de abertura registrada;
+- status `Aberto`, `Não aberto` ou `Sem rastreamento`;
+- primeira abertura;
+- última abertura;
+- total de carregamentos.
+
+### Banco
+
+Em banco existente, execute:
+
+`database/migrations/20260813_rastreamento_email_v1.9.0.sql`
+
+Em instalação nova, use apenas `database/schema.sql`.

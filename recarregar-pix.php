@@ -8,13 +8,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     Support::redirect('/');
 }
 
-$code = trim(
-    (string)($_POST['codigo'] ?? '')
-);
-
-$payment = PagamentoRepository::byCode(
-    $code
-);
+$code = trim((string)($_POST['codigo'] ?? ''));
+$payment = PagamentoRepository::byCode($code);
 
 if (!$payment) {
     http_response_code(404);
@@ -29,15 +24,13 @@ try {
     }
 
     if (($payment['formaPagamento'] ?? '') !== 'PIX') {
-        throw new RuntimeException(
-            'Este pagamento não é PIX.'
-        );
+        throw new RuntimeException('Este pagamento não é PIX.');
     }
 
     if (
         in_array(
             (string)$payment['status'],
-            ['Pago', 'Cancelado', 'Estornado', 'Vencido'],
+            ['Pago','Cancelado','Estornado','Vencido'],
             true
         )
     ) {
@@ -46,21 +39,30 @@ try {
         );
     }
 
-    $asaasPaymentId = trim(
-        (string)($payment['asaasPaymentId'] ?? '')
+    $provider = trim(
+        (string)($payment['provedor'] ?? 'Asaas')
     );
 
-    if ($asaasPaymentId === '') {
+    $providerPaymentId = trim(
+        (string)(
+            $payment['provedorPaymentId']
+            ?? $payment['asaasPaymentId']
+            ?? ''
+        )
+    );
+
+    if ($providerPaymentId === '') {
         throw new RuntimeException(
-            'A cobrança ainda não está vinculada ao Asaas.'
+            'A cobrança ainda não está vinculada ao provedor.'
         );
     }
 
-    $asaas = new AsaasService();
-
-    $qr = $asaas->pixQrCode(
-        $asaasPaymentId
+    $gateway = PaymentGatewayManager::provider(
+        $provider,
+        'PIX'
     );
+
+    $qr = $gateway->pixQrCode($providerPaymentId);
 
     PagamentoRepository::setPixData(
         (int)$payment['idPagamento'],
@@ -73,7 +75,8 @@ try {
     );
 } catch (Throwable $e) {
     if (
-        AsaasSettings::activeEnvironment() === 'sandbox'
+        ($payment['provedor'] ?? 'Asaas') === 'Asaas'
+        && AsaasSettings::activeEnvironment() === 'sandbox'
         && AsaasService::isPixReceivingDisabledError($e)
     ) {
         PagamentoRepository::warning(
@@ -85,22 +88,20 @@ try {
 
         Support::flash(
             'success',
-            'A cobrança de teste já está criada. Nesta conta Sandbox o Asaas não disponibiliza QR Code Pix. Confirme a cobrança manualmente no painel Sandbox para testar o webhook.'
+            'A cobrança de teste já está criada. Nesta conta Sandbox o Asaas não disponibiliza QR Code Pix.'
         );
     } else {
         PagamentoRepository::warning(
             (int)$payment['idPagamento'],
-            'Cobrança criada no Asaas, mas o QR Code Pix ainda não está disponível: '
+            'A cobrança já existe no provedor, mas o QR Code Pix ainda não está disponível: '
             . $e->getMessage()
         );
 
         Support::flash(
             'error',
-            'A cobrança já existe no Asaas, mas o QR Code Pix ainda não pôde ser carregado.'
+            'A cobrança já existe, mas o QR Code Pix ainda não pôde ser carregado.'
         );
     }
 }
 
-Support::redirect(
-    '/pagamento/' . $code
-);
+Support::redirect('/pagamento/' . $code);

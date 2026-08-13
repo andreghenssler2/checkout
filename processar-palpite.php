@@ -103,10 +103,6 @@ try {
         throw new RuntimeException('PIX não está habilitado.');
     }
 
-    if ($method === 'PIX') {
-        PixAvailabilityService::assertAvailable();
-    }
-
     if ($method === 'Cartao' && empty($event['cartao_ativo'])) {
         throw new RuntimeException('Cartão não está habilitado.');
     }
@@ -129,26 +125,36 @@ try {
         'telefone' => $telefone,
     ]);
 
-    $asaas = new AsaasService();
+    $gateway = PaymentGatewayManager::forMethod($method);
+    $gateway->assertReady($method);
 
-    /*
-     * Garante que o ambiente Asaas está apto a emitir cobranças
-     * antes de criar/reutilizar o cliente.
-     */
-    $asaas->assertAccountApproved();
-    $customer = $asaas->getOrCreateCustomer([
+    $customer = $gateway->preparePayer([
         'nome' => $nome,
         'cpf' => $cpf,
         'email' => $email,
         'telefone' => $telefone,
     ]);
 
-    $customerId = (string)($customer['id'] ?? '');
+    $customerId = trim((string)($customer['id'] ?? ''));
+
     if ($customerId === '') {
-        throw new RuntimeException('O Asaas não retornou o cliente.');
+        throw new RuntimeException(
+            'O provedor de pagamento não retornou a identificação do pagador.'
+        );
     }
 
-    DoadorRepository::setAsaas((int)$donor['idDoador'], $customerId);
+    DoadorGatewayRepository::set(
+        (int)$donor['idDoador'],
+        $gateway->key(),
+        $customerId
+    );
+
+    if ($gateway->key() === 'Asaas') {
+        DoadorRepository::setAsaas(
+            (int)$donor['idDoador'],
+            $customerId
+        );
+    }
 
     $palpiteId = PalpiteRepository::createEntry(
         $id,
@@ -163,7 +169,8 @@ try {
         (int)$donor['idDoador'],
         $code,
         $value,
-        $method
+        $method,
+        $gateway->key()
     );
 
     $description = 'Palpite - '
@@ -173,7 +180,7 @@ try {
 
     try {
         if ($method === 'PIX') {
-            $response = $asaas->createPix(
+            $response = $gateway->createPix(
                 $customerId,
                 $value,
                 $description,
@@ -184,13 +191,14 @@ try {
              * Primeiro salva a cobrança criada no Asaas.
              * Depois tenta carregar o QR Code Pix.
              */
-            PagamentoRepository::setAsaas(
+            PagamentoRepository::setGateway(
                 $paymentId,
+                $gateway->key(),
                 $response
             );
 
             try {
-                $qr = $asaas->pixQrCode(
+                $qr = $gateway->pixQrCode(
                     (string)$response['id']
                 );
 
@@ -200,7 +208,8 @@ try {
                 );
             } catch (Throwable $qrError) {
                 if (
-                    AsaasSettings::activeEnvironment() === 'sandbox'
+                    $gateway->key() === 'Asaas'
+                    && AsaasSettings::activeEnvironment() === 'sandbox'
                     && AsaasService::isPixReceivingDisabledError($qrError)
                 ) {
                     PagamentoRepository::warning(
@@ -212,7 +221,9 @@ try {
                 } else {
                     PagamentoRepository::warning(
                         $paymentId,
-                        'Cobrança criada no Asaas, mas o QR Code Pix não pôde ser carregado: '
+                        'Cobrança criada no '
+                        . $gateway->label()
+                        . ', mas o QR Code Pix não pôde ser carregado: '
                         . $qrError->getMessage()
                     );
                 }
@@ -224,43 +235,124 @@ try {
                     . $qrError->getMessage()
                 );
             }
-        } else {
-            $card = [
-                'holderName' => $_POST['card_holder'] ?? '',
-                'number' => $_POST['card_number'] ?? '',
-                'expiryMonth' => $_POST['card_month'] ?? '',
-                'expiryYear' => $_POST['card_year'] ?? '',
-                'ccv' => $_POST['card_ccv'] ?? '',
-            ];
+} else {
+    if ($gateway->key() === 'PagBank') {
+        $card = [
+            'holderName' =>
+                $_POST['card_holder'] ?? '',
+            'encrypted' =>
+                $_POST['pagbank_encrypted_card']
+                ?? '',
+        ];
 
-            $holder = [
-                'name' => $nome,
-                'email' => $email,
-                'cpfCnpj' => $_POST['holder_cpf'] ?? $cpf,
-                'postalCode' => $_POST['holder_cep'] ?? '',
-                'addressNumber' => $_POST['holder_numero'] ?? '',
-                'addressComplement' => $_POST['holder_complemento'] ?? '',
-                'mobilePhone' => $telefone,
-            ];
+        $holder = [
+            'name' =>
+                $_POST['card_holder']
+                ?? $nome,
+            'email' => $email,
+            'cpfCnpj' =>
+                $_POST['holder_cpf']
+                ?? $cpf,
+            'mobilePhone' => $telefone,
+        ];
 
-            if (
-                trim((string)$card['holderName']) === ''
-                || strlen(preg_replace('/\D+/', '', (string)$card['number'])) < 13
-                || !in_array(
-                    strlen(preg_replace('/\D+/', '', (string)$card['ccv'])),
-                    [3, 4],
-                    true
+        if (
+            trim(
+                (string)$card['holderName']
+            ) === ''
+            || strlen(
+                trim(
+                    (string)$card['encrypted']
                 )
-                || !Support::validCpf((string)$holder['cpfCnpj'])
-                || strlen(preg_replace('/\D+/', '', (string)$holder['postalCode'])) !== 8
-                || trim((string)$holder['addressNumber']) === ''
-            ) {
-                throw new RuntimeException(
-                    'Preencha corretamente os dados do cartão e do titular.'
-                );
-            }
+            ) < 80
+            || !Support::validCpf(
+                (string)$holder['cpfCnpj']
+            )
+        ) {
+            throw new RuntimeException(
+                'Confira os dados do cartão. O cartão PagBank precisa ser criptografado novamente antes do envio.'
+            );
+        }
+    } else {
+        $card = [
+            'holderName' =>
+                $_POST['card_holder']
+                ?? '',
+            'number' =>
+                $_POST['card_number']
+                ?? '',
+            'expiryMonth' =>
+                $_POST['card_month']
+                ?? '',
+            'expiryYear' =>
+                $_POST['card_year']
+                ?? '',
+            'ccv' =>
+                $_POST['card_ccv']
+                ?? '',
+        ];
 
-            $response = $asaas->createCreditCard(
+        $holder = [
+            'name' => $nome,
+            'email' => $email,
+            'cpfCnpj' =>
+                $_POST['holder_cpf']
+                ?? $cpf,
+            'postalCode' =>
+                $_POST['holder_cep']
+                ?? '',
+            'addressNumber' =>
+                $_POST['holder_numero']
+                ?? '',
+            'addressComplement' =>
+                $_POST['holder_complemento']
+                ?? '',
+            'mobilePhone' => $telefone,
+        ];
+
+        if (
+            trim(
+                (string)$card['holderName']
+            ) === ''
+            || strlen(
+                preg_replace(
+                    '/\D+/',
+                    '',
+                    (string)$card['number']
+                )
+            ) < 13
+            || !in_array(
+                strlen(
+                    preg_replace(
+                        '/\D+/',
+                        '',
+                        (string)$card['ccv']
+                    )
+                ),
+                [3, 4],
+                true
+            )
+            || !Support::validCpf(
+                (string)$holder['cpfCnpj']
+            )
+            || strlen(
+                preg_replace(
+                    '/\D+/',
+                    '',
+                    (string)$holder['postalCode']
+                )
+            ) !== 8
+            || trim(
+                (string)$holder['addressNumber']
+            ) === ''
+        ) {
+            throw new RuntimeException(
+                'Preencha corretamente os dados do cartão e do titular.'
+            );
+        }
+    }
+
+            $response = $gateway->createCreditCard(
                 $customerId,
                 $value,
                 $description,
@@ -269,7 +361,7 @@ try {
                 $holder
             );
 
-            PagamentoRepository::setAsaas($paymentId, $response);
+            PagamentoRepository::setGateway($paymentId, $gateway->key(), $response);
         }
     } catch (Throwable $e) {
         PagamentoRepository::fail($paymentId, $e->getMessage());

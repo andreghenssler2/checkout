@@ -36,8 +36,15 @@ function paymentMethodLabel(string $method): string
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="robots" content="noindex,nofollow">
-    <title>Comprovante <?= Support::e($receipt['numero']) ?></title>
-    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/app.css">
+    <title><?= Support::e(
+        SiteSettings::pageTitle(
+            'Comprovante ' . $receipt['numero']
+        )
+    ) ?></title>
+
+    <?php SiteSettings::renderFavicon(); ?>
+
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/app.css?v=1.8.9">
     <?= AnalyticsService::renderHead() ?>
 </head>
 <body class="receipt-page">
@@ -46,7 +53,11 @@ function paymentMethodLabel(string $method): string
     <section class="receipt-card">
         <header class="receipt-head">
             <div>
-                <span class="receipt-brand">IECLB Parobé</span>
+                <span class="receipt-brand">
+                    <?= Support::e(
+                        SiteSettings::title()
+                    ) ?>
+                </span>
                 <h1>Comprovante de Pagamento</h1>
             </div>
             <span class="badge paid">Pago</span>
@@ -133,22 +144,27 @@ function paymentMethodLabel(string $method): string
             <strong>Pagamento confirmado</strong>
             <p>
                 Este comprovante foi emitido automaticamente pelo
-                Checkout IECLB Parobé após a confirmação do pagamento.
+                <?= Support::e(SiteSettings::title()) ?>
+                após a confirmação do pagamento.
             </p>
         </div>
 
         <p class="receipt-fiscal-note">
-            Este comprovante confirma o pagamento realizado no Checkout
-            IECLB Parobé e não substitui documento fiscal quando este for
-            legalmente exigido.
+            Este comprovante confirma o pagamento realizado em
+            <?= Support::e(SiteSettings::title()) ?> e não substitui
+            documento fiscal quando este for legalmente exigido.
         </p>
 
-        <div class="receipt-transparency">
-            <strong>Transparência sobre o recebimento</strong>
-            <p>
-                <?= Support::e(TransparencyNotice::receiptText()) ?>
-            </p>
-        </div>
+        <?php if (TransparencyNotice::isVisible()): ?>
+            <div class="receipt-transparency">
+                <strong>Transparência sobre o recebimento</strong>
+                <p>
+                    <?= Support::e(
+                        TransparencyNotice::receiptText()
+                    ) ?>
+                </p>
+            </div>
+        <?php endif; ?>
 
         <div class="receipt-actions no-print">
             <button

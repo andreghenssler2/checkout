@@ -57,14 +57,24 @@ function phReceived(array $event): string
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Histórico de Palpites - Checkout IECLB Parobé</title>
+    <title><?= Support::e(
+        SiteSettings::pageTitle(
+            'Histórico de Palpites'
+        )
+    ) ?></title>
+
     <meta
         name="description"
-        content="Jogos de palpites realizados e próximos jogos"
+        content="<?= Support::e(
+            SiteSettings::description()
+        ) ?>"
     >
+
+    <?php SiteSettings::renderFavicon(); ?>
+
     <link
         rel="stylesheet"
-        href="<?= APP_URL ?>/assets/css/app.css?v=1.7.7"
+        href="<?= APP_URL ?>/assets/css/app.css?v=1.8.9"
     >
     <?= AnalyticsService::renderHead() ?>
 </head>
@@ -72,8 +82,11 @@ function phReceived(array $event): string
 
 <header class="public-head">
     <a href="<?= APP_URL ?>/" class="public-brand">
-        <strong>Checkout</strong>
-        <span>IECLB Parobé</span>
+        <strong>
+            <?= Support::e(
+                SiteSettings::title()
+            ) ?>
+        </strong>
     </a>
 </header>
 

@@ -23,7 +23,13 @@ if (!$link) {
             name="viewport"
             content="width=device-width,initial-scale=1"
         >
-        <title>Link não encontrado - Checkout</title>
+        <title><?= Support::e(
+            SiteSettings::pageTitle(
+                'Link não encontrado'
+            )
+        ) ?></title>
+
+        <?php SiteSettings::renderFavicon(); ?>
         <link
             rel="stylesheet"
             href="<?= APP_URL ?>/assets/css/app.css"

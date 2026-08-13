@@ -20,14 +20,45 @@ unset($_SESSION['_checkout_error']);
 $boleto = BoletoOfertaService::disponibilidade($offer);
 $boletoDisponivel = (bool)$boleto['disponivel'];
 
+$pixProvider =
+    PaymentGatewaySettings::providerFor('PIX');
+
+$cartaoProvider =
+    PaymentGatewaySettings::providerFor('Cartao');
+
+$boletoProvider =
+    PaymentGatewaySettings::providerFor('Boleto');
+
 $pixStatus = PixAvailabilityService::status(true);
-$temPixConfigurado = !empty($offer['pix_ativo']);
+
+$temPixConfigurado =
+    !empty($offer['pix_ativo']);
+
 $temPix = $temPixConfigurado
     && PixAvailabilityService::checkoutAvailable();
 
-$temCartao = !empty($offer['cartao_ativo']);
-$temBoleto = $boletoDisponivel;
-$temFormaDisponivel = $temPix || $temCartao || $temBoleto;
+$temCartaoConfigurado =
+    !empty($offer['cartao_ativo']);
+
+$temCartao = $temCartaoConfigurado
+    && PaymentGatewayManager::configuredFor(
+        'Cartao'
+    );
+
+$boletoGatewayConfigurado =
+    PaymentGatewayManager::configuredFor(
+        'Boleto'
+    );
+
+$temBoleto = $boletoDisponivel
+    && $boletoGatewayConfigurado;
+
+$boletoExigeEndereco =
+    $temBoleto
+    && $boletoProvider === 'PagBank';
+
+$temFormaDisponivel =
+    $temPix || $temCartao || $temBoleto;
 
 $formaInicial = $temPix
     ? 'PIX'
@@ -60,16 +91,33 @@ if (!empty($offer['data_inicio'])) {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title><?= Support::e($offer['titulo']) ?> - Checkout</title>
-    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/app.css?v=1.7.2">
+    <title><?= Support::e(
+        SiteSettings::pageTitle(
+            (string)$offer['titulo']
+        )
+    ) ?></title>
+
+    <meta
+        name="description"
+        content="<?= Support::e(
+            SiteSettings::description()
+        ) ?>"
+    >
+
+    <?php SiteSettings::renderFavicon(); ?>
+
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/app.css?v=1.8.9">
     <?= AnalyticsService::renderHead() ?>
 </head>
 <body class="bg">
 
 <header class="public-head">
     <a href="<?= APP_URL ?>/">
-        <strong>Checkout</strong>
-        <span>IECLB Parobé</span>
+        <strong>
+            <?= Support::e(
+                SiteSettings::title()
+            ) ?>
+        </strong>
     </a>
 </header>
 
@@ -173,8 +221,9 @@ if (!empty($offer['data_inicio'])) {
                 <div class="payment-method-disabled">
                     <span>◆ <b>PIX indisponível</b></span>
                     <small>
-                        A integração Asaas ou a API Key do ambiente atual
-                        não está disponível para processar PIX.
+                        O provedor PIX configurado
+                        (<?= Support::e($pixProvider) ?>)
+                        não está disponível neste momento.
                     </small>
                 </div>
             <?php endif; ?>
@@ -204,7 +253,15 @@ if (!empty($offer['data_inicio'])) {
             <?php elseif (!empty($offer['boleto_ativo'])): ?>
                 <div class="payment-method-disabled">
                     <span>▤ <b>Boleto indisponível</b></span>
-                    <small><?= Support::e((string)$boleto['motivo']) ?></small>
+                    <small>
+                        <?= Support::e(
+                            !$boletoDisponivel
+                                ? (string)$boleto['motivo']
+                                : 'O provedor de Boleto configurado ('
+                                    . $boletoProvider
+                                    . ') ainda não está configurado/ativo.'
+                        ) ?>
+                    </small>
                 </div>
             <?php endif; ?>
         </div>
@@ -244,6 +301,82 @@ if (!empty($offer['data_inicio'])) {
                 </p>
             </div>
         </div>
+
+<?php if ($boletoProvider === 'PagBank'): ?>
+    <div
+        id="pagbankBoletoAddress"
+        class="pagbank-boleto-address hidden"
+    >
+        <h3>Endereço para o Boleto PagBank</h3>
+
+        <p class="section-help">
+            O PagBank exige o endereço completo do pagador para
+            emitir o boleto.
+        </p>
+
+        <div class="grid2">
+            <label>
+                CEP*
+                <input
+                    name="pagbank_cep"
+                    inputmode="numeric"
+                    autocomplete="postal-code"
+                    maxlength="9"
+                >
+            </label>
+
+            <label>
+                Estado (UF)*
+                <input
+                    name="pagbank_estado"
+                    maxlength="2"
+                    autocomplete="address-level1"
+                    placeholder="RS"
+                >
+            </label>
+
+            <label class="full">
+                Logradouro*
+                <input
+                    name="pagbank_logradouro"
+                    autocomplete="address-line1"
+                >
+            </label>
+
+            <label>
+                Número*
+                <input
+                    name="pagbank_numero"
+                    autocomplete="address-line2"
+                >
+            </label>
+
+            <label>
+                Bairro*
+                <input
+                    name="pagbank_bairro"
+                    autocomplete="address-level3"
+                >
+            </label>
+
+            <label>
+                Cidade*
+                <input
+                    name="pagbank_cidade"
+                    autocomplete="address-level2"
+                >
+            </label>
+
+            <label>
+                Complemento
+                <input
+                    name="pagbank_complemento"
+                    autocomplete="address-line3"
+                >
+            </label>
+        </div>
+    </div>
+<?php endif; ?>
 
         <div id="cardFields" class="card-fields hidden">
             <h3>Dados do cartão</h3>
@@ -301,29 +434,64 @@ if (!empty($offer['data_inicio'])) {
                     <input name="holder_cpf" inputmode="numeric">
                 </label>
 
-                <label>
-                    CEP*
+                <?php if ($cartaoProvider === 'Asaas'): ?>
+                    <label>
+                        CEP*
+                        <input
+                            name="holder_cep"
+                            inputmode="numeric"
+                            autocomplete="postal-code"
+                        >
+                    </label>
+
+                    <label>
+                        Número*
+                        <input
+                            name="holder_numero"
+                            autocomplete="address-line2"
+                        >
+                    </label>
+
+                    <label class="full">
+                        Complemento
+                        <input name="holder_complemento">
+                    </label>
+                <?php else: ?>
                     <input
-                        name="holder_cep"
-                        inputmode="numeric"
-                        autocomplete="postal-code"
+                        type="hidden"
+                        name="pagbank_encrypted_card"
+                        id="pagbankEncryptedCard"
+                        value=""
                     >
-                </label>
-
-                <label>
-                    Número*
-                    <input name="holder_numero" autocomplete="address-line2">
-                </label>
-
-                <label class="full">
-                    Complemento
-                    <input name="holder_complemento">
-                </label>
+                <?php endif; ?>
             </div>
 
+            <?php if (
+                $cartaoProvider === 'PagBank'
+                && PagBankSettings::activeEnvironment() === 'sandbox'
+            ): ?>
+                <div class="pagbank-sandbox-card-note">
+                    <strong>Ambiente Sandbox PagBank</strong>
+                    <p>
+                        Use somente cartões de teste PagBank.
+                        Exemplo aprovado:
+                        <code>4539620659922097</code>,
+                        validade <code>12/2026</code>,
+                        CVV <code>123</code>.
+                    </p>
+                </div>
+            <?php endif; ?>
+
             <p class="privacy">
-                Os dados do cartão são enviados diretamente ao Asaas para
-                processamento e não são gravados pelo sistema.
+                <?php if ($cartaoProvider === 'PagBank'): ?>
+                    Número, validade e CVV são criptografados no navegador
+                    pelo SDK do PagBank. O Checkout envia ao servidor apenas
+                    o cartão criptografado e não grava os dados sensíveis.
+                <?php else: ?>
+                    Os dados do cartão são enviados ao provedor
+                    <?= Support::e($cartaoProvider) ?> para processamento
+                    e não são gravados pelo sistema.
+                <?php endif; ?>
             </p>
         </div>
 
@@ -407,7 +575,31 @@ if (!empty($offer['data_inicio'])) {
 
 <script>
 window.offerMin = <?= json_encode($min) ?>;
+window.checkoutBoletoRequiresAddress =
+    <?= $boletoExigeEndereco ? 'true' : 'false' ?>;
+window.checkoutBoletoProvider =
+    <?= json_encode($boletoProvider) ?>;
+window.checkoutCardProvider =
+    <?= json_encode($cartaoProvider) ?>;
+window.checkoutPagBankPublicKey =
+    <?= json_encode(
+        $cartaoProvider === 'PagBank'
+            ? PagBankSettings::publicKey()
+            : ''
+    ) ?>;
+window.checkoutPagBankEnvironment =
+    <?= json_encode(
+        $cartaoProvider === 'PagBank'
+            ? PagBankSettings::activeEnvironment()
+            : ''
+    ) ?>;
 </script>
-<script src="<?= APP_URL ?>/assets/js/checkout.js"></script>
+
+<?php if ($cartaoProvider === 'PagBank' && $temCartao): ?>
+    <script src="https://assets.pagseguro.com.br/checkout-sdk-js/rc/dist/browser/pagseguro.min.js"></script>
+    <script src="<?= APP_URL ?>/assets/js/pagbank-card.js?v=1.8.9"></script>
+<?php endif; ?>
+
+<script src="<?= APP_URL ?>/assets/js/checkout.js?v=1.8.9"></script>
 </body>
 </html>
