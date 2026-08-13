@@ -7,10 +7,22 @@ $pageTitle = $pageTitle ?? 'Administrador';
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title><?= Support::e($pageTitle) ?> - Checkout</title>
+    <title><?= Support::e(
+        SiteSettings::pageTitle($pageTitle)
+    ) ?></title>
+
+    <meta
+        name="description"
+        content="<?= Support::e(
+            SiteSettings::description()
+        ) ?>"
+    >
+
+    <?php SiteSettings::renderFavicon(); ?>
+
     <link
         rel="stylesheet"
-        href="<?= APP_URL ?>/assets/css/app.css?v=1.6.7"
+        href="<?= APP_URL ?>/assets/css/app.css?v=1.9.0"
     >
 </head>
 
@@ -23,7 +35,11 @@ $pageTitle = $pageTitle ?? 'Administrador';
         aria-label="Menu administrativo"
     >
         <div class="sidebar-head">
-            <div class="brand">Checkout</div>
+            <div class="brand">
+                <?= Support::e(
+                    SiteSettings::title()
+                ) ?>
+            </div>
         </div>
 
         <nav>
@@ -32,7 +48,10 @@ $pageTitle = $pageTitle ?? 'Administrador';
             <a href="<?= APP_URL ?>/admin/palpites/">Palpites</a>
             <a href="<?= APP_URL ?>/admin/pagamentos/">Pagamentos</a>
             <a href="<?= APP_URL ?>/admin/relatorios/">Relatórios</a>
+            <a href="<?= APP_URL ?>/admin/configuracoes/site.php">Site</a>
+            <a href="<?= APP_URL ?>/admin/configuracoes/pagamentos.php">Provedores</a>
             <a href="<?= APP_URL ?>/admin/configuracoes/asaas.php">Asaas</a>
+            <a href="<?= APP_URL ?>/admin/configuracoes/pagbank.php">PagBank</a>
             <a href="<?= APP_URL ?>/admin/configuracoes/email.php">E-mail</a>
             <a href="<?= APP_URL ?>/admin/configuracoes/analytics.php">
                 Google Analytics

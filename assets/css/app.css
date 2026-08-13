@@ -3037,3 +3037,298 @@ p{
 .prediction-history-empty{padding:24px;border:1px dashed #cfd4da;border-radius:12px;background:#f8f8f9;color:var(--muted);text-align:center}
 @media(max-width:1000px){.prediction-history-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:620px){.prediction-history-grid{grid-template-columns:1fr}.prediction-history-heading{align-items:flex-start}}
+
+
+/* Multi-Gateway - v1.8.0 */
+.gateway-cards{
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:16px;
+    margin-top:18px;
+}
+.gateway-card{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    min-width:0;
+    padding:18px;
+    border:1px solid #dfe2e6;
+    border-radius:12px;
+    background:#fff;
+}
+.gateway-card.ready{
+    border-color:#bcd9c5;
+    background:#f5fbf7;
+}
+.gateway-card.planned{
+    background:#f8f8f9;
+}
+.gateway-card h3{
+    margin:10px 0 6px;
+    font-size:20px;
+}
+.gateway-card p{
+    flex:1;
+    margin:0 0 12px;
+    color:var(--muted);
+    line-height:1.5;
+}
+.gateway-card small{
+    color:var(--muted);
+    line-height:1.45;
+}
+@media(max-width:900px){
+    .gateway-cards{
+        grid-template-columns:1fr;
+    }
+}
+
+
+/* =========================================================
+   PagBank - v1.8.1
+   ========================================================= */
+
+.pagbank-boleto-address{
+    margin:18px 0 24px;
+    padding:18px;
+    border:1px solid #d9dde3;
+    border-radius:12px;
+    background:#f8f9fa;
+}
+.pagbank-boleto-address.hidden{display:none!important}
+.pagbank-boleto-address h3{margin:0 0 7px}
+
+.gateway-key-grid,
+.gateway-current-grid{
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:12px;
+    margin:16px 0 20px;
+}
+.gateway-key-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.gateway-key-grid>div,
+.gateway-current-grid>div{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    min-width:0;
+    padding:14px;
+    border:1px solid #e0e3e7;
+    border-radius:10px;
+    background:#f8f9fa;
+}
+.gateway-key-grid small,
+.gateway-current-grid small{color:var(--muted)}
+.gateway-key-grid code{
+    max-width:100%;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+.gateway-status-list{display:grid;gap:10px}
+.gateway-status-list>div{
+    display:grid;
+    grid-template-columns:auto 180px minmax(0,1fr);
+    align-items:center;
+    gap:12px;
+    padding:12px;
+    border:1px solid #e0e3e7;
+    border-radius:10px;
+    background:#fafafa;
+}
+.gateway-status-list small{
+    color:var(--muted);
+    line-height:1.45;
+}
+@media(max-width:720px){
+    .gateway-key-grid,
+    .gateway-current-grid{grid-template-columns:1fr}
+    .gateway-status-list>div{grid-template-columns:1fr}
+}
+
+
+/* =========================================================
+   Aviso e-mail comprador x vendedor PagBank - v1.8.2
+   ========================================================= */
+
+.pagbank-merchant-email-note{
+    margin:16px 0 22px;
+    padding:15px 17px;
+    border:1px solid #ead9a5;
+    border-radius:10px;
+    background:#fff9e8;
+}
+
+.pagbank-merchant-email-note strong{
+    display:block;
+    margin-bottom:5px;
+}
+
+.pagbank-merchant-email-note p{
+    margin:0;
+    color:#625a3b;
+    font-size:13px;
+    line-height:1.55;
+}
+
+
+/* =========================================================
+   Cartão PagBank ativo - v1.8.3
+   ========================================================= */
+
+.pagbank-card-encryption-error{
+    margin-bottom:18px;
+}
+
+.card-fields .privacy{
+    line-height:1.55;
+}
+
+
+/* =========================================================
+   Diagnóstico Cartão PagBank Sandbox - v1.8.6
+   ========================================================= */
+
+.pagbank-sandbox-card-note{
+    margin:14px 0;
+    padding:13px 15px;
+    border:1px solid #d5dbe3;
+    border-radius:10px;
+    background:#f4f6f8;
+}
+
+.pagbank-sandbox-card-note strong{
+    display:block;
+    margin-bottom:5px;
+}
+
+.pagbank-sandbox-card-note p{
+    margin:0;
+    color:var(--muted);
+    font-size:12px;
+    line-height:1.5;
+}
+
+
+/* =========================================================
+   Configurações do Site - v1.8.9
+   ========================================================= */
+
+.site-favicon-preview{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    margin:14px 0 22px;
+    padding:13px 15px;
+    border:1px solid #d7dce3;
+    border-radius:10px;
+    background:#f8f9fa;
+}
+
+.site-favicon-preview img{
+    width:52px;
+    height:52px;
+    border-radius:8px;
+    object-fit:contain;
+    background:#fff;
+    border:1px solid #e1e4e8;
+}
+
+.site-favicon-preview strong{
+    display:block;
+    margin-bottom:7px;
+}
+
+.site-remove-favicon{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    font-weight:500;
+}
+
+.site-remove-favicon input{
+    width:auto;
+    margin:0;
+}
+
+.site-transparency-help{
+    display:grid;
+    grid-template-columns:130px minmax(0,1fr);
+    gap:8px 14px;
+    margin:12px 0 22px;
+    padding:14px 16px;
+    border:1px solid #d7dce3;
+    border-radius:10px;
+    background:#f8f9fa;
+    font-size:13px;
+    line-height:1.5;
+}
+
+.site-transparency-help span{
+    color:var(--muted);
+}
+
+.transparency-box-summary{
+    padding-top:16px;
+    padding-bottom:16px;
+}
+
+@media(max-width:640px){
+    .site-transparency-help{
+        grid-template-columns:1fr;
+    }
+}
+
+
+/* =========================================================
+   Rastreamento de abertura de e-mail - v1.9.0
+   ========================================================= */
+
+.email-tracking-note{
+    margin:14px 0 22px;
+    padding:14px 16px;
+    border:1px solid #d7dce3;
+    border-radius:10px;
+    background:#f8f9fa;
+}
+
+.email-tracking-note strong{
+    display:block;
+    margin-bottom:6px;
+}
+
+.email-tracking-note p{
+    margin:5px 0;
+    color:var(--muted);
+    font-size:13px;
+    line-height:1.5;
+}
+
+.email-open-stats{
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:12px;
+    margin:0 0 16px;
+}
+
+.email-open-stat{
+    margin:0;
+}
+
+.email-open-stat small{
+    display:block;
+    color:var(--muted);
+    margin-bottom:8px;
+}
+
+.email-open-stat strong{
+    display:block;
+    font-size:28px;
+    line-height:1;
+}
+
+@media(max-width:760px){
+    .email-open-stats{
+        grid-template-columns:1fr;
+    }
+}

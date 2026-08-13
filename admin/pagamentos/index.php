@@ -187,7 +187,7 @@ require dirname(__DIR__) . '/_header.php';
             <th>Forma</th>
             <th>Valor</th>
             <th>Status</th>
-            <th>Asaas</th>
+            <th>Provedor</th>
             <th>Erro / retorno</th>
             <th>Comprovante</th>
         </tr>

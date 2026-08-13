@@ -52,12 +52,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             Database::connection()->prepare(
                 'UPDATE configuracoes_email SET
                     ativo=:a,
+                    rastrear_abertura=:ra,
                     remetente_nome=:n,
                     remetente_email=:e,
                     reply_to=:r
                  WHERE idConfiguracao=1'
             )->execute([
                 ':a' => !empty($_POST['ativo']) ? 1 : 0,
+                ':ra' =>
+                    !empty($_POST['rastrear_abertura'])
+                        ? 1
+                        : 0,
                 ':n' => $fromName,
                 ':e' => $fromEmail,
                 ':r' => $replyTo !== '' ? $replyTo : null,
@@ -120,6 +125,37 @@ $logs = Database::connection()->query(
      LIMIT 50"
 )->fetchAll();
 
+$emailStats = Database::connection()->query(
+    "SELECT
+        SUM(
+            status='Enviado'
+            AND rastreamento_token IS NOT NULL
+        ) AS rastreaveis,
+        SUM(
+            status='Enviado'
+            AND rastreamento_token IS NOT NULL
+            AND abertoEm IS NOT NULL
+        ) AS abertos
+     FROM emails_envios"
+)->fetch() ?: [];
+
+$trackable = (int)(
+    $emailStats['rastreaveis']
+    ?? 0
+);
+
+$opened = (int)(
+    $emailStats['abertos']
+    ?? 0
+);
+
+$openRate = $trackable > 0
+    ? round(
+        ($opened / $trackable) * 100,
+        1
+    )
+    : 0.0;
+
 require dirname(__DIR__) . '/_header.php';
 ?>
 
@@ -154,6 +190,33 @@ require dirname(__DIR__) . '/_header.php';
                 >
                 Envio de e-mail ativo
             </label>
+
+            <label>
+                <input
+                    type="checkbox"
+                    name="rastrear_abertura"
+                    value="1"
+                    <?= !empty($settings['rastrear_abertura']) ? 'checked' : '' ?>
+                >
+                Rastrear abertura dos e-mails enviados
+            </label>
+        </div>
+
+        <div class="email-tracking-note">
+            <strong>Como funciona o rastreamento</strong>
+
+            <p>
+                Cada e-mail recebe uma imagem transparente exclusiva.
+                Quando essa imagem é carregada, o Checkout registra a
+                primeira abertura, a última abertura e a quantidade de
+                carregamentos. Não são armazenados IP nem User-Agent.
+            </p>
+
+            <p>
+                O resultado é indicativo: bloqueio de imagens, Apple Mail
+                Privacy Protection e proxies de Gmail/Outlook podem impedir
+                ou antecipar o registro de uma abertura.
+            </p>
         </div>
 
         <div class="grid2">
@@ -216,6 +279,32 @@ require dirname(__DIR__) . '/_header.php';
     </form>
 </div>
 
+<div class="email-open-stats">
+    <div class="panel email-open-stat">
+        <small>E-mails rastreáveis enviados</small>
+        <strong><?= $trackable ?></strong>
+    </div>
+
+    <div class="panel email-open-stat">
+        <small>Com abertura registrada</small>
+        <strong><?= $opened ?></strong>
+    </div>
+
+    <div class="panel email-open-stat">
+        <small>Taxa de abertura registrada</small>
+        <strong>
+            <?= Support::e(
+                number_format(
+                    $openRate,
+                    1,
+                    ',',
+                    '.'
+                )
+            ) ?>%
+        </strong>
+    </div>
+</div>
+
 <div class="panel tablewrap">
     <h2>Últimos envios</h2>
 
@@ -227,6 +316,7 @@ require dirname(__DIR__) . '/_header.php';
             <th>Destinatário</th>
             <th>Assunto</th>
             <th>Status</th>
+            <th>Abertura</th>
             <th>Tentativas</th>
             <th>Erro</th>
         </tr>
@@ -243,6 +333,53 @@ require dirname(__DIR__) . '/_header.php';
                         <?= Support::e($log['status']) ?>
                     </span>
                 </td>
+
+                <td>
+                    <?php if (!empty($log['abertoEm'])): ?>
+                        <span class="badge paid">
+                            Aberto
+                        </span>
+
+                        <br>
+
+                        <small>
+                            1ª:
+                            <?= Support::e(
+                                $log['abertoEm']
+                            ) ?>
+                        </small>
+
+                        <?php if ((int)($log['totalAberturas'] ?? 0) > 1): ?>
+                            <br>
+                            <small>
+                                Última:
+                                <?= Support::e(
+                                    $log['ultimaAberturaEm']
+                                    ?? $log['abertoEm']
+                                ) ?>
+                            </small>
+                        <?php endif; ?>
+
+                        <br>
+
+                        <small>
+                            Carregamentos:
+                            <?= (int)(
+                                $log['totalAberturas']
+                                ?? 0
+                            ) ?>
+                        </small>
+                    <?php elseif (!empty($log['rastreamento_token'])): ?>
+                        <span class="badge muted">
+                            Não aberto
+                        </span>
+                    <?php else: ?>
+                        <span class="badge muted">
+                            Sem rastreamento
+                        </span>
+                    <?php endif; ?>
+                </td>
+
                 <td><?= (int)$log['tentativas'] ?></td>
                 <td>
                     <small><?= Support::e($log['ultimoErro'] ?? '') ?></small>
@@ -252,7 +389,7 @@ require dirname(__DIR__) . '/_header.php';
 
         <?php if (!$logs): ?>
             <tr>
-                <td colspan="7">Nenhum envio registrado.</td>
+                <td colspan="8">Nenhum envio registrado.</td>
             </tr>
         <?php endif; ?>
         </tbody>

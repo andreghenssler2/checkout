@@ -53,47 +53,64 @@
                 <?= Support::e($payment['status']) ?>
             </span>
 
-            <?php if (!empty($payment['asaasStatus'])): ?>
+            <?php if (!empty($payment['provedorStatus'] ?? $payment['asaasStatus'])): ?>
                 <br>
                 <small class="payment-asaas-status">
-                    Asaas:
-                    <?= Support::e($payment['asaasStatus']) ?>
+                    <?= Support::e($payment['provedor'] ?? 'Asaas') ?>:
+                    <?= Support::e(
+                        $payment['provedorStatus']
+                        ?? $payment['asaasStatus']
+                    ) ?>
                 </small>
             <?php endif; ?>
         </td>
 
         <td>
-            <?php if (!empty($payment['asaasPaymentId'])): ?>
+            <strong>
+                <?= Support::e(
+                    $payment['provedor'] ?? 'Asaas'
+                ) ?>
+            </strong>
+            <br>
+
+            <?php if (!empty($payment['provedorPaymentId'] ?? $payment['asaasPaymentId'])): ?>
                 <small>
-                    <?= Support::e($payment['asaasPaymentId']) ?>
+                    <?= Support::e(
+                        $payment['provedorPaymentId']
+                        ?? $payment['asaasPaymentId']
+                    ) ?>
                 </small>
             <?php else: ?>
                 <span>—</span>
 
-                <form
-                    method="post"
-                    action="<?= APP_URL ?>/admin/pagamentos/reconciliar.php"
-                    class="reconcile-form"
-                >
-                    <input
-                        type="hidden"
-                        name="_csrf"
-                        value="<?= Support::csrf() ?>"
+                <?php if (($payment['provedor'] ?? 'Asaas') === 'Asaas'): ?>
+                    <form
+                        method="post"
+                        action="<?= APP_URL ?>/admin/pagamentos/reconciliar.php"
+                        class="reconcile-form"
                     >
+                        <input
+                            type="hidden"
+                            name="_csrf"
+                            value="<?= Support::csrf() ?>"
+                        >
 
-                    <input
-                        type="hidden"
-                        name="idPagamento"
-                        value="<?= (int)$payment['idPagamento'] ?>"
-                    >
+                        <input
+                            type="hidden"
+                            name="idPagamento"
+                            value="<?= (int)$payment['idPagamento'] ?>"
+                        >
 
-                    <button
-                        class="btn small"
-                        type="submit"
-                    >
-                        Reconciliar
-                    </button>
-                </form>
+                        <button
+                            class="btn small"
+                            type="submit"
+                        >
+                            Reconciliar
+                        </button>
+                    </form>
+                <?php else: ?>
+                    <small>Aguardando vínculo pelo webhook.</small>
+                <?php endif; ?>
             <?php endif; ?>
         </td>
 

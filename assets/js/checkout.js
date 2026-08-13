@@ -6,6 +6,8 @@
   const cardFields = document.getElementById('cardFields');
   const pixMessage = document.getElementById('pixMessage');
   const boletoMessage = document.getElementById('boletoMessage');
+  const pagbankBoletoAddress =
+    document.getElementById('pagbankBoletoAddress');
 
   const money = v =>
     new Intl.NumberFormat('pt-BR', {
@@ -67,12 +69,46 @@
     pixMessage?.classList.toggle('hidden', !isPix);
     boletoMessage?.classList.toggle('hidden', !isBoleto);
 
-    cardFields
+    const showPagBankBoletoAddress =
+      isBoleto
+      && window.checkoutBoletoRequiresAddress === true;
+
+    pagbankBoletoAddress?.classList.toggle(
+      'hidden',
+      !showPagBankBoletoAddress
+    );
+
+    pagbankBoletoAddress
       ?.querySelectorAll('input,select')
       .forEach(field => {
         field.required =
+          showPagBankBoletoAddress
+          && field.name !== 'pagbank_complemento';
+      });
+
+    cardFields
+      ?.querySelectorAll('input,select')
+      .forEach(field => {
+        if (field.type === 'hidden') {
+          field.required = false;
+          return;
+        }
+
+        const pagBankCard =
+          window.checkoutCardProvider === 'PagBank';
+
+        const optionalForPagBank =
+          pagBankCard
+          && [
+            'holder_cep',
+            'holder_numero',
+            'holder_complemento'
+          ].includes(field.name);
+
+        field.required =
           isCard
-          && field.name !== 'holder_complemento';
+          && field.name !== 'holder_complemento'
+          && !optionalForPagBank;
       });
   }
 
