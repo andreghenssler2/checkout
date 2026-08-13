@@ -13,6 +13,62 @@ CREATE TABLE IF NOT EXISTS administradores (
  PRIMARY KEY (idAdministrador), UNIQUE KEY uq_admin_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS configuracoes_site (
+ idConfiguracao TINYINT UNSIGNED NOT NULL DEFAULT 1,
+ titulo VARCHAR(160) NOT NULL DEFAULT 'Checkout IECLB Parobé',
+ descricao VARCHAR(300) NOT NULL DEFAULT 'Campanhas de ofertas e palpites da IECLB Parobé',
+ favicon VARCHAR(255) NULL,
+ transparencia_tipo ENUM('Completa','Resumida','Oculta') NOT NULL DEFAULT 'Completa',
+ criadoEm DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ atualizadoEm DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ PRIMARY KEY(idConfiguracao)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO configuracoes_site (
+ idConfiguracao,titulo,descricao,favicon,transparencia_tipo
+) VALUES (
+ 1,
+ 'Checkout IECLB Parobé',
+ 'Campanhas de ofertas e palpites da IECLB Parobé',
+ NULL,
+ 'Completa'
+);
+
+CREATE TABLE IF NOT EXISTS configuracoes_pagamentos (
+ idConfiguracao TINYINT UNSIGNED NOT NULL DEFAULT 1,
+ provedor_pix VARCHAR(30) NOT NULL DEFAULT 'Asaas',
+ provedor_cartao VARCHAR(30) NOT NULL DEFAULT 'Asaas',
+ provedor_boleto VARCHAR(30) NOT NULL DEFAULT 'Asaas',
+ criadoEm DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ atualizadoEm DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ PRIMARY KEY(idConfiguracao)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT IGNORE INTO configuracoes_pagamentos (
+ idConfiguracao,provedor_pix,provedor_cartao,provedor_boleto
+) VALUES (1,'Asaas','Asaas','Asaas');
+
+CREATE TABLE IF NOT EXISTS configuracoes_pagbank (
+ idConfiguracao TINYINT UNSIGNED NOT NULL DEFAULT 1,
+ ativo TINYINT(1) NOT NULL DEFAULT 0,
+ ambiente ENUM('sandbox','producao') NOT NULL DEFAULT 'sandbox',
+ cartao_prazo_recebimento SMALLINT UNSIGNED NOT NULL DEFAULT 30,
+ token_sandbox TEXT NULL,
+ token_producao TEXT NULL,
+ public_key_sandbox LONGTEXT NULL,
+ public_key_producao LONGTEXT NULL,
+ ultimo_teste_sandbox DATETIME NULL,
+ ultimo_teste_producao DATETIME NULL,
+ ultimo_erro_sandbox TEXT NULL,
+ ultimo_erro_producao TEXT NULL,
+ criadoEm DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ atualizadoEm DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ PRIMARY KEY(idConfiguracao)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO configuracoes_pagbank (
+ idConfiguracao,ativo,ambiente
+) VALUES (1,0,'sandbox');
+
 CREATE TABLE IF NOT EXISTS configuracoes_asaas (
  idConfiguracao TINYINT UNSIGNED NOT NULL DEFAULT 1,
  ativo TINYINT(1) NOT NULL DEFAULT 0,
@@ -51,6 +107,7 @@ INSERT IGNORE INTO configuracoes_analytics (
 CREATE TABLE IF NOT EXISTS configuracoes_email (
  idConfiguracao TINYINT UNSIGNED NOT NULL DEFAULT 1,
  ativo TINYINT(1) NOT NULL DEFAULT 1,
+ rastrear_abertura TINYINT(1) NOT NULL DEFAULT 1,
  remetente_nome VARCHAR(150) NOT NULL DEFAULT 'IECLB Parobé',
  remetente_email VARCHAR(180) NOT NULL DEFAULT 'noreply@ieclbparobe.com.br',
  reply_to VARCHAR(180) NULL DEFAULT 'secretaria@ieclbparobe.com.br',
@@ -60,9 +117,9 @@ CREATE TABLE IF NOT EXISTS configuracoes_email (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT IGNORE INTO configuracoes_email (
- idConfiguracao,ativo,remetente_nome,remetente_email,reply_to
+ idConfiguracao,ativo,rastrear_abertura,remetente_nome,remetente_email,reply_to
 ) VALUES (
- 1,1,'IECLB Parobé','noreply@ieclbparobe.com.br','secretaria@ieclbparobe.com.br'
+ 1,1,1,'IECLB Parobé','noreply@ieclbparobe.com.br','secretaria@ieclbparobe.com.br'
 );
 
 CREATE TABLE IF NOT EXISTS doadores (
@@ -79,6 +136,18 @@ CREATE TABLE IF NOT EXISTS doadores (
  KEY idx_doador_asaas(asaasCustomerId)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+
+CREATE TABLE IF NOT EXISTS doadores_provedores (
+ idDoador BIGINT UNSIGNED NOT NULL,
+ provedor VARCHAR(30) NOT NULL,
+ customerId VARCHAR(160) NOT NULL,
+ criadoEm DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ atualizadoEm DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ PRIMARY KEY(idDoador,provedor),
+ UNIQUE KEY uq_doador_provedor_customer(provedor,customerId),
+ CONSTRAINT fk_doador_provedor_doador FOREIGN KEY(idDoador)
+   REFERENCES doadores(idDoador) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS links_curtos (
  idLink BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -210,6 +279,9 @@ CREATE TABLE IF NOT EXISTS pagamentos (
  valorLiquido DECIMAL(10,2) NULL,
  taxa DECIMAL(10,2) NULL,
  formaPagamento ENUM('PIX','Cartao','Boleto') NOT NULL,
+ provedor VARCHAR(30) NOT NULL DEFAULT 'Asaas',
+ provedorPaymentId VARCHAR(160) NULL,
+ provedorStatus VARCHAR(80) NULL,
  status VARCHAR(30) NOT NULL DEFAULT 'Pendente',
  asaasPaymentId VARCHAR(100) NULL,
  asaasStatus VARCHAR(60) NULL,
@@ -231,6 +303,8 @@ CREATE TABLE IF NOT EXISTS pagamentos (
  KEY idx_pag_palpite(idPalpite),
  KEY idx_pag_doador(idDoador),
  KEY idx_pag_status(status),
+ KEY idx_pag_provedor_status(provedor,provedorStatus),
+ UNIQUE KEY uq_pag_provedor_payment(provedor,provedorPaymentId),
  KEY idx_pag_data(criadoEm),
  KEY idx_pag_status_data_pagamento(status,dataPagamento),
  CONSTRAINT fk_pag_oferta FOREIGN KEY(idOferta) REFERENCES ofertas(idOferta) ON DELETE RESTRICT ON UPDATE CASCADE,
@@ -263,19 +337,43 @@ CREATE TABLE IF NOT EXISTS emails_envios (
  destinatario VARCHAR(180) NOT NULL,
  assunto VARCHAR(220) NOT NULL,
  corpoHtml LONGTEXT NOT NULL,
+ rastreamento_token CHAR(64) NULL,
  status ENUM('Pendente','Enviado','Erro') NOT NULL DEFAULT 'Pendente',
  tentativas INT UNSIGNED NOT NULL DEFAULT 0,
  ultimoErro TEXT NULL,
  criadoEm DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
  enviadoEm DATETIME NULL,
+ abertoEm DATETIME NULL,
+ ultimaAberturaEm DATETIME NULL,
+ totalAberturas INT UNSIGNED NOT NULL DEFAULT 0,
  PRIMARY KEY(idEmail),
  UNIQUE KEY uq_email_pagamento_tipo(idPagamento,tipo),
+ UNIQUE KEY uq_email_rastreamento_token(rastreamento_token),
  KEY idx_email_status(status,criadoEm),
+ KEY idx_email_abertura(abertoEm,enviadoEm),
  CONSTRAINT fk_email_pagamento
    FOREIGN KEY(idPagamento)
    REFERENCES pagamentos(idPagamento)
    ON DELETE SET NULL
    ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS pagbank_webhook_eventos (
+ id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+ hashPayload CHAR(64) NOT NULL,
+ orderId VARCHAR(80) NULL,
+ chargeId VARCHAR(80) NULL,
+ referencia VARCHAR(64) NULL,
+ statusPagBank VARCHAR(80) NULL,
+ payload LONGTEXT NOT NULL,
+ processadoEm DATETIME NULL,
+ erro TEXT NULL,
+ criadoEm DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ PRIMARY KEY(id),
+ UNIQUE KEY uq_pagbank_webhook_hash(hashPayload),
+ KEY idx_pagbank_webhook_order(orderId),
+ KEY idx_pagbank_webhook_referencia(referencia),
+ KEY idx_pagbank_webhook_status(statusPagBank)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS asaas_webhook_eventos (
